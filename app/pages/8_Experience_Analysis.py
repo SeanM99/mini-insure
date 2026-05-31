@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import page_shell
+from app.components import render_empty_state, render_error_state, page_shell
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
 
 
@@ -31,22 +31,33 @@ def render_experience_analysis() -> None:
     )
     st.info("Experience views use observed valuation data only. Hidden synthetic truth is not loaded.")
 
-    observed = load_observed_data(context.portfolio_mode, context.seed)
+    try:
+        with st.spinner("Loading observed experience data..."):
+            observed = load_observed_data(context.portfolio_mode, context.seed)
+    except Exception as exc:
+        render_error_state("Observed experience data could not be loaded.", exc)
+        st.stop()
     policies = observed["policies"]
     claims = observed["claims"]
     payments = observed["payments"]
     snapshot = observed["observed_valuation_snapshot"]
+    if policies.empty:
+        render_empty_state("No policy data is available for experience analysis.")
+        st.stop()
 
     st.markdown("### Frequency By Year")
     exposure = policies.groupby("accident_year", as_index=False).agg(earned_exposure=("earned_exposure", "sum"))
     claim_counts = claims.groupby("accident_year", as_index=False).agg(claim_count=("claim_id", "count"))
     frequency = exposure.merge(claim_counts, on="accident_year", how="left").fillna({"claim_count": 0})
     frequency["observed_frequency"] = frequency["claim_count"] / frequency["earned_exposure"]
-    st.plotly_chart(
-        px.bar(frequency, x="accident_year", y="observed_frequency", title="Frequency By Year"),
-        width="stretch",
-    )
-    st.table(frequency)
+    if frequency.empty:
+        render_empty_state("No frequency rows are available.")
+    else:
+        st.plotly_chart(
+            px.bar(frequency, x="accident_year", y="observed_frequency", title="Frequency By Year"),
+            width="stretch",
+        )
+        st.dataframe(frequency, hide_index=True, width="stretch")
 
     st.markdown("### Severity By Claim Type")
     severity = (
@@ -59,11 +70,14 @@ def render_experience_analysis() -> None:
         )
         .sort_values("average_observed_estimate", ascending=False)
     )
-    st.plotly_chart(
-        px.bar(severity, x="claim_type", y="average_observed_estimate", title="Severity By Claim Type"),
-        width="stretch",
-    )
-    st.table(severity)
+    if severity.empty:
+        render_empty_state("No severity rows are available.")
+    else:
+        st.plotly_chart(
+            px.bar(severity, x="claim_type", y="average_observed_estimate", title="Severity By Claim Type"),
+            width="stretch",
+        )
+        st.dataframe(severity, hide_index=True, width="stretch")
 
     st.markdown("### Loss Ratio By Year")
     premium = policies.groupby("accident_year", as_index=False).agg(earned_premium=("earned_premium", "sum"))
@@ -74,15 +88,18 @@ def render_experience_analysis() -> None:
     loss_ratio = premium.merge(observed_loss, on="accident_year", how="left").fillna(0.0)
     loss_ratio["incurred_observed_loss"] = loss_ratio["observed_loss"] + loss_ratio["case_reserve"]
     loss_ratio["loss_ratio"] = loss_ratio["incurred_observed_loss"] / loss_ratio["earned_premium"]
-    st.plotly_chart(
-        px.line(loss_ratio, x="accident_year", y="loss_ratio", markers=True, title="Loss Ratio By Year"),
-        width="stretch",
-    )
-    st.table(loss_ratio)
+    if loss_ratio.empty:
+        render_empty_state("No loss ratio rows are available.")
+    else:
+        st.plotly_chart(
+            px.line(loss_ratio, x="accident_year", y="loss_ratio", markers=True, title="Loss Ratio By Year"),
+            width="stretch",
+        )
+        st.dataframe(loss_ratio, hide_index=True, width="stretch")
 
     st.markdown("### Paid Emergence View")
     if payments.empty:
-        st.info("No observed payments.")
+        render_empty_state("No observed payments are available.")
     else:
         paid = payments.merge(claims[["claim_id", "accident_year", "accident_date"]], on="claim_id", how="left")
         paid["development_month"] = (
@@ -108,7 +125,10 @@ def render_experience_analysis() -> None:
             ),
             width="stretch",
         )
-        st.table(emergence.head(40))
+        if emergence.empty:
+            render_empty_state("No paid emergence rows are available.")
+        else:
+            st.dataframe(emergence.head(40), hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

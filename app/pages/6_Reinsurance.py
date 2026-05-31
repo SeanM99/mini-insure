@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur, page_shell
+from app.components import format_eur_m, page_shell, render_empty_state, render_error_state
 from miniinsure.simulation.reinsurance_simulation import (
     ReinsuranceProgram,
     apply_default_reinsurance_program,
@@ -49,7 +49,12 @@ def render_reinsurance_page() -> None:
         quota_share_enabled=quota_share_enabled,
         quota_share_ceded_pct=ceded_pct / 100.0 if quota_share_enabled else 0.0,
     )
-    data = load_observed_data(context.portfolio_mode, context.seed)
+    try:
+        with st.spinner("Applying the default reinsurance program..."):
+            data = load_observed_data(context.portfolio_mode, context.seed)
+    except Exception as exc:
+        render_error_state("Observed reinsurance inputs could not be loaded.", exc)
+        st.stop()
     result = apply_default_reinsurance_program(
         data["observed_valuation_snapshot"],
         data["policies"],
@@ -58,53 +63,60 @@ def render_reinsurance_page() -> None:
     reconciliation = gross_to_net_reconciliation(result)
 
     col_gross, col_ceded, col_recoveries, col_default, col_net = st.columns(5)
-    col_gross.metric("Gross losses", format_eur(result.summary["gross_loss"]))
-    col_ceded.metric("Ceded losses", format_eur(result.summary["quota_share_ceded_loss"]))
-    col_recoveries.metric("Recoveries", format_eur(result.summary["total_recovery"]))
+    col_gross.metric("Gross losses", format_eur_m(result.summary["gross_loss"]))
+    col_ceded.metric("Ceded losses", format_eur_m(result.summary["quota_share_ceded_loss"]))
+    col_recoveries.metric("Recoveries", format_eur_m(result.summary["total_recovery"]))
     col_default.metric(
         "Default-adjusted recoverables",
-        format_eur(result.summary["default_adjusted_recoverable"]),
+        format_eur_m(result.summary["default_adjusted_recoverable"]),
     )
-    col_net.metric("Net losses", format_eur(result.summary["net_loss"]))
+    col_net.metric("Net losses", format_eur_m(result.summary["net_loss"]))
 
     st.markdown("### Gross-To-Net Reconciliation")
-    st.table(reconciliation)
+    if reconciliation.empty:
+        render_empty_state("No gross-to-net reconciliation rows are available.")
+    else:
+        st.dataframe(reconciliation, hide_index=True, width="stretch")
 
-    chart_data = reconciliation.melt(
-        id_vars="accident_year",
-        value_vars=["gross_loss", "net_loss", "default_adjusted_recoverable"],
-        var_name="measure",
-        value_name="amount",
-    )
-    st.plotly_chart(
-        px.bar(
-            chart_data,
-            x="accident_year",
-            y="amount",
-            color="measure",
-            barmode="group",
-            title="Gross And Net Reinsurance Results",
-        ),
-        width="stretch",
-    )
+    if not reconciliation.empty:
+        chart_data = reconciliation.melt(
+            id_vars="accident_year",
+            value_vars=["gross_loss", "net_loss", "default_adjusted_recoverable"],
+            var_name="measure",
+            value_name="amount",
+        )
+        st.plotly_chart(
+            px.bar(
+                chart_data,
+                x="accident_year",
+                y="amount",
+                color="measure",
+                barmode="group",
+                title="Gross And Net Reinsurance Results",
+            ),
+            width="stretch",
+        )
 
     st.markdown("### Claim-Level Per-Risk XOL Audit")
-    st.dataframe(
-        result.claim_level[
-            [
-                "claim_id",
-                "accident_year",
-                "gross_loss",
-                "quota_share_ceded_loss",
-                "loss_after_quota_share",
-                "per_risk_xol_recovery",
-                "net_loss_before_aggregate",
-                "per_risk_default_adjusted_recoverable",
-            ]
-        ].sort_values("gross_loss", ascending=False).head(25),
-        hide_index=True,
-        width="stretch",
-    )
+    if result.claim_level.empty:
+        render_empty_state("No claim-level reinsurance audit rows are available.")
+    else:
+        st.dataframe(
+            result.claim_level[
+                [
+                    "claim_id",
+                    "accident_year",
+                    "gross_loss",
+                    "quota_share_ceded_loss",
+                    "loss_after_quota_share",
+                    "per_risk_xol_recovery",
+                    "net_loss_before_aggregate",
+                    "per_risk_default_adjusted_recoverable",
+                ]
+            ].sort_values("gross_loss", ascending=False).head(25),
+            hide_index=True,
+            width="stretch",
+        )
 
 
 if __name__ == "__main__":

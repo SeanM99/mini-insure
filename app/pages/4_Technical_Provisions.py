@@ -6,7 +6,15 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur, format_percent, page_shell, render_validation_badges
+from app.components import (
+    format_eur_m,
+    format_pct,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_status_badge,
+    render_validation_badges,
+)
 from miniinsure.reserving.deterministic_methods import (
     TAIL_FACTORS,
     deterministic_reserving_results,
@@ -97,11 +105,16 @@ def render_technical_provisions() -> None:
     if st.button("Rerun reserve risk"):
         st.cache_data.clear()
 
-    data = load_reserving_data(
-        context.portfolio_mode,
-        context.seed,
-        int(context.reserve_risk_simulations or QUICK_MODE_SIMULATIONS),
-    )
+    try:
+        with st.spinner("Calculating technical provisions and reserve risk quick mode..."):
+            data = load_reserving_data(
+                context.portfolio_mode,
+                context.seed,
+                int(context.reserve_risk_simulations or QUICK_MODE_SIMULATIONS),
+            )
+    except Exception as exc:
+        render_error_state("Technical provisions could not be calculated.", exc)
+        st.stop()
     paid_triangle = data["paid_triangle"]
     incurred_triangle = data["incurred_triangle"]
     reserving_results = data["reserving_results"]
@@ -122,26 +135,27 @@ def render_technical_provisions() -> None:
 
     st.markdown("### Solvency II-Style Technical Provisions")
     metric_cols = st.columns(6)
-    metric_cols[0].metric("Claims provision", format_eur(provisions_summary["claims_provision"]))
-    metric_cols[1].metric("Premium provision", format_eur(provisions_summary["premium_provision"]))
-    metric_cols[2].metric("Reinsurance recoverables", format_eur(provisions_summary["reinsurance_recoverables"]))
-    metric_cols[3].metric("Risk margin", format_eur(provisions_summary["risk_margin"]))
+    metric_cols[0].metric("Claims provision", format_eur_m(provisions_summary["claims_provision"]))
+    metric_cols[1].metric("Premium provision", format_eur_m(provisions_summary["premium_provision"]))
+    metric_cols[2].metric("Reinsurance recoverables", format_eur_m(provisions_summary["reinsurance_recoverables"]))
+    metric_cols[3].metric("Risk margin", format_eur_m(provisions_summary["risk_margin"]))
     metric_cols[4].metric(
         "Gross technical provisions",
-        format_eur(provisions_summary["gross_technical_provisions"]),
+        format_eur_m(provisions_summary["gross_technical_provisions"]),
     )
     metric_cols[5].metric(
         "Net technical provisions",
-        format_eur(provisions_summary["net_technical_provisions"]),
+        format_eur_m(provisions_summary["net_technical_provisions"]),
     )
 
-    if provisions_summary["reconciliation_status"] == "pass":
-        st.success(
-            "Reconciliation status: PASS. Gross technical provisions less discounted "
-            "recoverables reconciles to net technical provisions within tolerance."
-        )
-    else:
-        st.error("Reconciliation status: FAIL. Review the gross-to-net provision bridge.")
+    render_status_badge(
+        "Technical provisions reconciliation",
+        str(provisions_summary["reconciliation_status"]),
+        detail=(
+            "Gross technical provisions less discounted recoverables reconciles to net "
+            "technical provisions within tolerance."
+        ),
+    )
 
     st.dataframe(
         pd.DataFrame(
@@ -167,31 +181,40 @@ def render_technical_provisions() -> None:
 
     st.markdown("### One-Year Reserve Risk Quick Mode")
     risk_cols = st.columns(5)
-    risk_cols[0].metric("Reserve capital", format_eur(reserve_risk_summary["reserve_capital"]))
-    risk_cols[1].metric("Mean reserve loss", format_eur(reserve_risk_summary["mean"]))
-    risk_cols[2].metric("VaR 99.5%", format_eur(reserve_risk_summary["var_995"]))
-    risk_cols[3].metric("TVaR 99.5%", format_eur(reserve_risk_summary["tvar_995"]))
+    risk_cols[0].metric("Reserve capital", format_eur_m(reserve_risk_summary["reserve_capital"]))
+    risk_cols[1].metric("Mean reserve loss", format_eur_m(reserve_risk_summary["mean"]))
+    risk_cols[2].metric("VaR 99.5%", format_eur_m(reserve_risk_summary["var_995"]))
+    risk_cols[3].metric("TVaR 99.5%", format_eur_m(reserve_risk_summary["tvar_995"]))
     risk_cols[4].metric(
         "Adverse probability",
-        format_percent(reserve_risk_summary["probability_of_adverse_development"]),
+        format_pct(reserve_risk_summary["probability_of_adverse_development"]),
     )
     st.caption(
         f"Quick mode uses {int(reserve_risk_settings['simulation_count']):,} simulations "
         f"with seed {int(reserve_risk_settings['seed'])}. Re-running with the same seed "
         "and simulation count reproduces the same distribution."
     )
-    st.dataframe(data["reserve_risk_summary"], hide_index=True, width="stretch")
-    st.plotly_chart(
-        px.histogram(
-            data["reserve_risk_simulations"],
-            x="reserve_loss",
-            nbins=50,
-            title="One-Year Reserve Loss Distribution",
-        ),
-        width="stretch",
-    )
+    if data["reserve_risk_summary"].empty:
+        render_empty_state("No reserve risk summary is available.")
+    else:
+        st.dataframe(data["reserve_risk_summary"], hide_index=True, width="stretch")
+    if data["reserve_risk_simulations"].empty:
+        render_empty_state("No reserve loss simulations are available.")
+    else:
+        st.plotly_chart(
+            px.histogram(
+                data["reserve_risk_simulations"],
+                x="reserve_loss",
+                nbins=50,
+                title="One-Year Reserve Loss Distribution",
+            ),
+            width="stretch",
+        )
     st.markdown("### Reserve Risk Components")
-    st.dataframe(data["reserve_risk_component_summary"], hide_index=True, width="stretch")
+    if data["reserve_risk_component_summary"].empty:
+        render_empty_state("No reserve risk component summary is available.")
+    else:
+        st.dataframe(data["reserve_risk_component_summary"], hide_index=True, width="stretch")
 
     st.markdown("### Paid Triangle")
     st.dataframe(
@@ -206,7 +229,11 @@ def render_technical_provisions() -> None:
     )
 
     st.markdown("### Development Factors")
-    st.dataframe(data["development_factors"], hide_index=True, width="stretch")
+    development_factors_display = data["development_factors"].copy()
+    for column in ["from_development_year", "to_development_year"]:
+        if column in development_factors_display.columns:
+            development_factors_display[column] = development_factors_display[column].astype(str)
+    st.dataframe(development_factors_display, hide_index=True, width="stretch")
 
     st.markdown("### Selected Deterministic Reserve")
     display_columns = [
@@ -221,13 +248,16 @@ def render_technical_provisions() -> None:
         "ibnr",
         "selected_reserve",
     ]
-    st.dataframe(
-        reserving_results[display_columns].sort_values(
-            ["solvency_ii_lob", "homogeneous_risk_group", "origin_year"]
-        ),
-        hide_index=True,
-        width="stretch",
-    )
+    if reserving_results.empty:
+        render_empty_state("No deterministic reserve rows are available.")
+    else:
+        st.dataframe(
+            reserving_results[display_columns].sort_values(
+                ["solvency_ii_lob", "homogeneous_risk_group", "origin_year"]
+            ),
+            hide_index=True,
+            width="stretch",
+        )
 
     st.markdown("### Selected Reserve By LoB And HRG")
     summary = (
@@ -239,16 +269,28 @@ def render_technical_provisions() -> None:
         )
         .sort_values(["solvency_ii_lob", "homogeneous_risk_group"])
     )
-    st.dataframe(summary, hide_index=True, width="stretch")
+    if summary.empty:
+        render_empty_state("No reserve summary is available by LoB and HRG.")
+    else:
+        st.dataframe(summary, hide_index=True, width="stretch")
 
     st.markdown("### Claims Provision Cash Flows")
-    st.dataframe(data["claims_cashflows"].head(60), hide_index=True, width="stretch")
+    if data["claims_cashflows"].empty:
+        render_empty_state("No claims provision cash flows are available.")
+    else:
+        st.dataframe(data["claims_cashflows"].head(60), hide_index=True, width="stretch")
 
     st.markdown("### Reinsurance Recoverables Cash Flows")
-    st.dataframe(data["reinsurance_cashflows"], hide_index=True, width="stretch")
+    if data["reinsurance_cashflows"].empty:
+        render_empty_state("No reinsurance recoverable cash flows are available.")
+    else:
+        st.dataframe(data["reinsurance_cashflows"], hide_index=True, width="stretch")
 
     st.markdown("### Risk Margin Runoff")
-    st.dataframe(data["risk_margin_runoff"], hide_index=True, width="stretch")
+    if data["risk_margin_runoff"].empty:
+        render_empty_state("No risk margin runoff is available.")
+    else:
+        st.dataframe(data["risk_margin_runoff"], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

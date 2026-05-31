@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_count, format_eur, page_shell
+from app.components import format_count, format_eur_m, page_shell, render_empty_state, render_error_state
 from miniinsure.charts import exposure_by_year, mix_bar, premium_by_year
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
 
@@ -29,16 +29,25 @@ def render_portfolio_overview() -> None:
         subtitle="Portfolio mix, exposure, premium, and observed paid experience for the selected scenario.",
     )
 
-    observed = load_observed_data(context.portfolio_mode, context.seed)
+    try:
+        with st.spinner("Loading observed portfolio data..."):
+            observed = load_observed_data(context.portfolio_mode, context.seed)
+    except Exception as exc:
+        render_error_state("Observed portfolio data could not be loaded.", exc)
+        st.stop()
     policies = observed["policies"]
     claims = observed["claims"]
     payments = observed["payments"]
+    if policies.empty:
+        render_empty_state("No policies are available for this scenario.")
+        st.stop()
+
     col_count, col_claims, col_exposure, col_written, col_earned = st.columns(5)
-    col_count.metric("Policies", format_count(len(policies)))
-    col_claims.metric("Observed claims", format_count(len(claims)))
-    col_exposure.metric("Earned exposure", format_count(policies["earned_exposure"].sum()))
-    col_written.metric("Written premium", format_eur(policies["written_premium"].sum()))
-    col_earned.metric("Earned premium", format_eur(policies["earned_premium"].sum()))
+    col_count.metric("Policies", format_count(len(policies), "policies"))
+    col_claims.metric("Observed claims", format_count(len(claims), "claims"))
+    col_exposure.metric("Earned exposure", format_count(policies["earned_exposure"].sum(), "exposure-years"))
+    col_written.metric("Written premium", format_eur_m(policies["written_premium"].sum()))
+    col_earned.metric("Earned premium", format_eur_m(policies["earned_premium"].sum()))
 
     left, right = st.columns(2)
     left.markdown("### Business Mix")
@@ -62,11 +71,14 @@ def render_portfolio_overview() -> None:
         )
         .sort_values("earned_premium", ascending=False)
     )
-    st.table(lob_mix)
+    if lob_mix.empty:
+        render_empty_state("No LoB mix is available for this scenario.")
+    else:
+        st.dataframe(lob_mix, hide_index=True, width="stretch")
 
     st.markdown("### Observed Paid By Year")
     if payments.empty:
-        st.info("No observed payments.")
+        render_empty_state("No observed payments are available yet.")
     else:
         paid_by_claim = claims[["claim_id", "accident_year"]].merge(payments, on="claim_id", how="inner")
         paid_by_year = (
@@ -74,7 +86,10 @@ def render_portfolio_overview() -> None:
             .agg(paid_amount=("paid_amount", "sum"))
             .sort_values("accident_year")
         )
-        st.table(paid_by_year)
+        if paid_by_year.empty:
+            render_empty_state("No paid amounts are available by accident year.")
+        else:
+            st.dataframe(paid_by_year, hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

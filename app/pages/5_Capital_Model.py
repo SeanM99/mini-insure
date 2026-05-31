@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur, format_percent, page_shell
+from app.components import format_eur_m, format_pct, page_shell, render_empty_state, render_error_state
 from miniinsure.risk_engine.capital_workflow import calculate_capital_workflow
 
 
@@ -62,32 +62,40 @@ def render_capital_model() -> None:
         capital_max=5_000,
     )
 
-    data = load_capital_model_data(
-        context.portfolio_mode,
-        context.seed,
-        int(context.reserve_risk_simulations or 250),
-        int(context.capital_simulations or 500),
-    )
+    try:
+        with st.spinner("Running capital model simulations..."):
+            data = load_capital_model_data(
+                context.portfolio_mode,
+                context.seed,
+                int(context.reserve_risk_simulations or 250),
+                int(context.capital_simulations or 500),
+            )
+    except Exception as exc:
+        render_error_state("Capital model results could not be calculated.", exc)
+        st.stop()
     summary = data["capital_summary"].iloc[0].to_dict()
 
     metric_cols = st.columns(6)
-    metric_cols[0].metric("Economic capital", format_eur(summary["economic_capital"]))
-    metric_cols[1].metric("VaR 99.5%", format_eur(summary["var_995"]))
-    metric_cols[2].metric("TVaR 99.5%", format_eur(summary["tvar_995"]))
-    metric_cols[3].metric("Standard Formula SCR", format_eur(summary["standard_formula_scr"]))
-    metric_cols[4].metric("MCR", format_eur(summary["mcr"]))
-    metric_cols[5].metric("Solvency ratio", format_percent(summary["solvency_ratio"]))
+    metric_cols[0].metric("Economic capital", format_eur_m(summary["economic_capital"]))
+    metric_cols[1].metric("VaR 99.5%", format_eur_m(summary["var_995"]))
+    metric_cols[2].metric("TVaR 99.5%", format_eur_m(summary["tvar_995"]))
+    metric_cols[3].metric("Standard Formula SCR", format_eur_m(summary["standard_formula_scr"]))
+    metric_cols[4].metric("MCR", format_eur_m(summary["mcr"]))
+    metric_cols[5].metric("Solvency ratio", format_pct(summary["solvency_ratio"]))
 
     st.markdown("### One-Year Loss Distribution")
-    st.plotly_chart(
-        px.histogram(
-            data["one_year_simulations"],
-            x="one_year_loss",
-            nbins=50,
-            title="One-Year Own Funds Loss",
-        ),
-        width="stretch",
-    )
+    if data["one_year_simulations"].empty:
+        render_empty_state("No one-year loss simulations are available.")
+    else:
+        st.plotly_chart(
+            px.histogram(
+                data["one_year_simulations"],
+                x="one_year_loss",
+                nbins=50,
+                title="One-Year Own Funds Loss",
+            ),
+            width="stretch",
+        )
 
     st.markdown("### Capital Contributions")
     contributions = pd.DataFrame(
@@ -101,25 +109,28 @@ def render_capital_model() -> None:
     contribution_cols = st.columns(4)
     contribution_cols[0].metric(
         "Reserve risk contribution",
-        format_eur(summary["reserve_risk_contribution"]),
+        format_eur_m(summary["reserve_risk_contribution"]),
     )
     contribution_cols[1].metric(
         "Premium risk contribution",
-        format_eur(summary["premium_risk_contribution"]),
+        format_eur_m(summary["premium_risk_contribution"]),
     )
     contribution_cols[2].metric(
         "Market risk contribution",
-        format_eur(summary["market_risk_contribution"]),
+        format_eur_m(summary["market_risk_contribution"]),
     )
     contribution_cols[3].metric(
         "Operational risk",
-        format_eur(summary["operational_risk"]),
+        format_eur_m(summary["operational_risk"]),
     )
-    st.plotly_chart(
-        px.bar(contributions, x="component", y="amount", title="One-Year Capital Contributions"),
-        width="stretch",
-    )
-    st.dataframe(contributions, hide_index=True, width="stretch")
+    if contributions.empty:
+        render_empty_state("No capital contribution rows are available.")
+    else:
+        st.plotly_chart(
+            px.bar(contributions, x="component", y="amount", title="One-Year Capital Contributions"),
+            width="stretch",
+        )
+        st.dataframe(contributions, hide_index=True, width="stretch")
 
     st.markdown("### Simplified Standard Formula SCR")
     st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")

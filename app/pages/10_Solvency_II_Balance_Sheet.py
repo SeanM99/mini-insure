@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_eur, format_percent, page_shell, render_status_badge
+from app.components import format_eur_m, format_pct, page_shell, render_empty_state, render_error_state, render_status_badge
 from miniinsure.risk_engine.capital_workflow import calculate_capital_workflow
 
 
@@ -53,26 +53,34 @@ def render_balance_sheet() -> None:
         capital_max=5_000,
     )
 
-    data = load_balance_sheet_data(
-        context.portfolio_mode,
-        context.seed,
-        int(context.reserve_risk_simulations or 250),
-        int(context.capital_simulations or 500),
-    )
+    try:
+        with st.spinner("Building the Solvency II-style balance sheet..."):
+            data = load_balance_sheet_data(
+                context.portfolio_mode,
+                context.seed,
+                int(context.reserve_risk_simulations or 250),
+                int(context.capital_simulations or 500),
+            )
+    except Exception as exc:
+        render_error_state("Balance sheet outputs could not be built.", exc)
+        st.stop()
+    if data["balance_sheet"].empty:
+        render_empty_state("No balance sheet rows are available.")
+        st.stop()
     balance = data["balance_sheet"].iloc[0].to_dict()
 
     metric_cols = st.columns(6)
-    metric_cols[0].metric("Assets", format_eur(balance["assets"]))
-    metric_cols[1].metric("Liabilities", format_eur(balance["liabilities"]))
-    metric_cols[2].metric("Technical provisions", format_eur(balance["technical_provisions"]))
-    metric_cols[3].metric("Own funds", format_eur(balance["own_funds"]))
-    metric_cols[4].metric("SCR", format_eur(balance["scr"]))
-    metric_cols[5].metric("MCR", format_eur(balance["mcr"]))
+    metric_cols[0].metric("Assets", format_eur_m(balance["assets"]))
+    metric_cols[1].metric("Liabilities", format_eur_m(balance["liabilities"]))
+    metric_cols[2].metric("Technical provisions", format_eur_m(balance["technical_provisions"]))
+    metric_cols[3].metric("Own funds", format_eur_m(balance["own_funds"]))
+    metric_cols[4].metric("SCR", format_eur_m(balance["scr"]))
+    metric_cols[5].metric("MCR", format_eur_m(balance["mcr"]))
 
     ratio_cols = st.columns(3)
-    ratio_cols[0].metric("Eligible own funds", format_eur(balance["eligible_own_funds"]))
-    ratio_cols[1].metric("Solvency ratio", format_percent(balance["solvency_ratio"]))
-    ratio_cols[2].metric("MCR ratio", format_percent(balance["mcr_ratio"]))
+    ratio_cols[0].metric("Eligible own funds", format_eur_m(balance["eligible_own_funds"]))
+    ratio_cols[1].metric("Solvency ratio", format_pct(balance["solvency_ratio"]))
+    ratio_cols[2].metric("MCR ratio", format_pct(balance["mcr_ratio"]))
 
     render_status_badge(
         "Balance sheet reconciliation",
@@ -103,10 +111,16 @@ def render_balance_sheet() -> None:
     )
 
     st.markdown("### Own Funds")
-    st.dataframe(data["own_funds_tiers"], hide_index=True, width="stretch")
+    if data["own_funds_tiers"].empty:
+        render_empty_state("No own funds tier rows are available.")
+    else:
+        st.dataframe(data["own_funds_tiers"], hide_index=True, width="stretch")
 
     st.markdown("### Capital Requirements")
-    st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
+    if data["standard_formula_modules"].empty:
+        render_empty_state("No capital requirement rows are available.")
+    else:
+        st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

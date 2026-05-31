@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import page_shell, render_validation_badges
+from app.components import format_count, page_shell, render_empty_state, render_error_state, render_validation_badges
 from miniinsure.qrt.export import generate_qrt_pack, qrt_pack_to_excel_bytes, qrt_pack_to_zip_bytes
 from miniinsure.qrt.mappings import export_names
 from miniinsure.qrt.validation import validate_qrt_pack, validation_summary
@@ -72,13 +72,18 @@ def render_qrt_reporting_pack() -> None:
         capital_max=5_000,
     )
 
-    data = load_qrt_data(
-        context.scenario_name,
-        context.portfolio_mode,
-        context.seed,
-        int(context.reserve_risk_simulations or 250),
-        int(context.capital_simulations or 500),
-    )
+    try:
+        with st.spinner("Generating mock QRT pack..."):
+            data = load_qrt_data(
+                context.scenario_name,
+                context.portfolio_mode,
+                context.seed,
+                int(context.reserve_risk_simulations or 250),
+                int(context.capital_simulations or 500),
+            )
+    except Exception as exc:
+        render_error_state("Mock QRT pack generation failed.", exc)
+        st.stop()
     pack: dict[str, pd.DataFrame] = data["pack"]  # type: ignore[assignment]
     validation: pd.DataFrame = data["validation"]  # type: ignore[assignment]
     summary = data["summary"]  # type: ignore[assignment]
@@ -86,8 +91,8 @@ def render_qrt_reporting_pack() -> None:
 
     metric_cols = st.columns(3)
     metric_cols[0].metric("Validation status", str(summary["status"]).upper())
-    metric_cols[1].metric("Blocking errors", int(summary["error_count"]))
-    metric_cols[2].metric("Warnings", int(summary["warning_count"]))
+    metric_cols[1].metric("Blocking errors", format_count(int(summary["error_count"]), "errors"))
+    metric_cols[2].metric("Warnings", format_count(int(summary["warning_count"]), "warnings"))
     render_validation_badges(
         status=str(summary["status"]),
         error_count=int(summary["error_count"]),
@@ -96,15 +101,24 @@ def render_qrt_reporting_pack() -> None:
     )
 
     st.markdown("### Applicability Matrix")
-    st.dataframe(pack["S.01.01.02"], hide_index=True, width="stretch")
+    if not pack or pack.get("S.01.01.02", pd.DataFrame()).empty:
+        render_empty_state("No applicability matrix rows are available.")
+    else:
+        st.dataframe(pack["S.01.01.02"], hide_index=True, width="stretch")
 
     st.markdown("### Template Viewer")
-    template = st.selectbox("Template", options=list(pack.keys()), index=0)
-    st.dataframe(pack[template], hide_index=True, width="stretch")
+    if not pack:
+        render_empty_state("No mock QRT templates are available.")
+    else:
+        template = st.selectbox("Template", options=list(pack.keys()), index=0)
+        if pack[template].empty:
+            render_empty_state("The selected mock QRT template is empty.")
+        else:
+            st.dataframe(pack[template], hide_index=True, width="stretch")
 
     st.markdown("### Validation Report")
     if validation.empty:
-        st.success("No QRT validation messages.")
+        render_empty_state("No QRT validation messages.")
     else:
         st.dataframe(validation, hide_index=True, width="stretch")
         if bool(summary["export_blocked"]):

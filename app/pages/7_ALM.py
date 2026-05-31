@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur, page_shell, render_status_badge
+from app.components import format_eur_m, page_shell, render_empty_state, render_error_state, render_status_badge
 from miniinsure.alm import alm_summary, combine_liability_cashflows
 from miniinsure.reserving.deterministic_methods import deterministic_reserving_results
 from miniinsure.reserving.reserve_risk import simulate_reserve_risk_quick
@@ -96,11 +96,16 @@ def render_alm_page() -> None:
         reserve_risk_max=5_000,
     )
 
-    data = load_alm_data(
-        context.portfolio_mode,
-        context.seed,
-        int(context.reserve_risk_simulations or 250),
-    )
+    try:
+        with st.spinner("Building ALM summaries and dependency validation..."):
+            data = load_alm_data(
+                context.portfolio_mode,
+                context.seed,
+                int(context.reserve_risk_simulations or 250),
+            )
+    except Exception as exc:
+        render_error_state("ALM summaries could not be calculated.", exc)
+        st.stop()
     validation = data["dependency_validation"].iloc[0].to_dict()
     render_status_badge(
         "Dependency matrix validation",
@@ -110,24 +115,30 @@ def render_alm_page() -> None:
 
     col_assets, col_scr, col_opening = st.columns(3)
     calibration = data["calibration"].iloc[0].to_dict()
-    col_assets.metric("Opening assets", format_eur(calibration["opening_assets"]))
-    col_scr.metric("SCR proxy", format_eur(calibration["scr"]))
-    col_opening.metric("Opening liabilities", format_eur(calibration["opening_liabilities"]))
+    col_assets.metric("Opening assets", format_eur_m(calibration["opening_assets"]))
+    col_scr.metric("SCR proxy", format_eur_m(calibration["scr"]))
+    col_opening.metric("Opening liabilities", format_eur_m(calibration["opening_liabilities"]))
 
     st.markdown("### Risk-Free Curve")
-    st.dataframe(data["risk_free_curve"], hide_index=True, width="stretch")
+    if data["risk_free_curve"].empty:
+        render_empty_state("No risk-free curve rows are available.")
+    else:
+        st.dataframe(data["risk_free_curve"], hide_index=True, width="stretch")
 
     st.markdown("### Asset Allocation")
-    st.plotly_chart(
-        px.pie(
-            data["asset_allocation"],
-            names="asset_class",
-            values="market_value",
-            title="Opening Asset Allocation",
-        ),
-        width="stretch",
-    )
-    st.dataframe(data["asset_allocation"], hide_index=True, width="stretch")
+    if data["asset_allocation"].empty:
+        render_empty_state("No asset allocation rows are available.")
+    else:
+        st.plotly_chart(
+            px.pie(
+                data["asset_allocation"],
+                names="asset_class",
+                values="market_value",
+                title="Opening Asset Allocation",
+            ),
+            width="stretch",
+        )
+        st.dataframe(data["asset_allocation"], hide_index=True, width="stretch")
 
     st.markdown("### Liability Cash-Flow Profile")
     st.dataframe(data["liability_cashflow_profile"], hide_index=True, width="stretch")

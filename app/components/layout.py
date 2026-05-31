@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import streamlit as st
 
+from .badges import render_badge_row
 from miniinsure.assumptions import (
     PORTFOLIO_MODES,
     Assumptions,
@@ -133,6 +134,10 @@ def page_shell(
 
     st.title(page_title)
     st.caption(subtitle)
+    badges = ["MOCK ONLY", "OBSERVED DATA ONLY"]
+    if show_reserve_risk_simulations:
+        badges.append("QUICK MODE")
+    render_badge_row(badges)
     render_mock_only_notice()
     return context
 
@@ -159,6 +164,18 @@ def render_mock_only_notice() -> None:
         "Educational outputs only. QRT outputs are mock-shaped only, no real XBRL is "
         "produced, and hidden synthetic truth is not used in model or reporting pages."
     )
+
+
+def render_empty_state(title: str, detail: str | None = None) -> None:
+    """Render a friendly empty-state message."""
+    message = title if detail is None else f"{title} {detail}"
+    st.info(message)
+
+
+def render_error_state(title: str, error: Exception | str) -> None:
+    """Render a friendly error-state message without a raw traceback."""
+    st.error(f"{title} Please review the scenario settings and try again.")
+    st.caption(str(error))
 
 
 def _render_sidebar_intro() -> None:

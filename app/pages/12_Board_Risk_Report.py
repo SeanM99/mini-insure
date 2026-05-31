@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import page_shell, render_validation_badges
+from app.components import format_count, page_shell, render_empty_state, render_error_state, render_validation_badges
 from miniinsure.qrt.export import generate_qrt_pack
 from miniinsure.qrt.mappings import export_names
 from miniinsure.qrt.validation import validate_qrt_pack, validation_summary
@@ -69,21 +69,26 @@ def render_board_risk_report() -> None:
         capital_max=5_000,
     )
 
-    data = load_board_report(
-        context.scenario_name,
-        context.portfolio_mode,
-        context.seed,
-        int(context.reserve_risk_simulations or 250),
-        int(context.capital_simulations or 500),
-    )
+    try:
+        with st.spinner("Generating board risk report..."):
+            data = load_board_report(
+                context.scenario_name,
+                context.portfolio_mode,
+                context.seed,
+                int(context.reserve_risk_simulations or 250),
+                int(context.capital_simulations or 500),
+            )
+    except Exception as exc:
+        render_error_state("Board risk report generation failed.", exc)
+        st.stop()
     validation: pd.DataFrame = data["validation"]  # type: ignore[assignment]
     summary = data["summary"]  # type: ignore[assignment]
     names = export_names(str(data["scenario_name"]))
 
     metric_cols = st.columns(3)
     metric_cols[0].metric("Validation status", str(summary["status"]).upper())
-    metric_cols[1].metric("Blocking errors", int(summary["error_count"]))
-    metric_cols[2].metric("Warnings", int(summary["warning_count"]))
+    metric_cols[1].metric("Blocking errors", format_count(int(summary["error_count"]), "errors"))
+    metric_cols[2].metric("Warnings", format_count(int(summary["warning_count"]), "warnings"))
     render_validation_badges(
         status=str(summary["status"]),
         error_count=int(summary["error_count"]),
@@ -94,9 +99,14 @@ def render_board_risk_report() -> None:
     if not validation.empty:
         st.markdown("### Validation Messages")
         st.dataframe(validation, hide_index=True, width="stretch")
+    else:
+        render_empty_state("No board pack validation messages.")
 
     st.markdown("### Markdown Preview")
-    st.markdown(str(data["report"]))
+    if str(data["report"]).strip():
+        st.markdown(str(data["report"]))
+    else:
+        render_empty_state("The board risk report preview is empty.")
     st.download_button(
         "Download board risk report Markdown",
         data=str(data["report"]),
