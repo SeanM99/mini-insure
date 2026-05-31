@@ -6,14 +6,20 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app.components import format_eur, format_percent, page_shell
 from miniinsure.risk_engine.capital_workflow import calculate_capital_workflow
-from miniinsure.utils import MASTER_SEED, PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
-def load_capital_model_data(seed: int, reserve_risk_simulations: int, capital_simulations: int) -> dict[str, pd.DataFrame]:
+def load_capital_model_data(
+    portfolio_mode: str,
+    seed: int,
+    reserve_risk_simulations: int,
+    capital_simulations: int,
+) -> dict[str, pd.DataFrame]:
     """Load the deterministic capital workflow for display."""
     result = calculate_capital_workflow(
+        portfolio_mode=portfolio_mode,
         reserve_risk_simulations=reserve_risk_simulations,
         capital_simulations=capital_simulations,
         seed=seed,
@@ -40,27 +46,37 @@ def load_capital_model_data(seed: int, reserve_risk_simulations: int, capital_si
 
 def render_capital_model() -> None:
     """Render one-year capital and simplified Standard Formula results."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - Capital Model", layout="wide")
-    st.title("Capital Model")
-    st.info(
-        "This page shows one-year economic capital and a simplified educational Standard Formula. "
-        "It is not a regulatory SCR calculation."
+    context = page_shell(
+        page_title="Capital Model",
+        subtitle=(
+            "One-year economic capital and a simplified educational Standard Formula. "
+            "This is not a regulatory SCR calculation."
+        ),
+        show_reserve_risk_simulations=True,
+        reserve_risk_default=250,
+        reserve_risk_min=50,
+        reserve_risk_max=5_000,
+        show_capital_simulations=True,
+        capital_default=500,
+        capital_min=100,
+        capital_max=5_000,
     )
 
-    controls = st.columns(3)
-    seed = int(controls[0].number_input("Capital model seed", min_value=1, value=MASTER_SEED, step=1))
-    reserve_sims = int(controls[1].number_input("Reserve risk simulations", min_value=50, max_value=1_000, value=250, step=50))
-    capital_sims = int(controls[2].number_input("One-year simulations", min_value=100, max_value=2_000, value=500, step=100))
-    data = load_capital_model_data(seed, reserve_sims, capital_sims)
+    data = load_capital_model_data(
+        context.portfolio_mode,
+        context.seed,
+        int(context.reserve_risk_simulations or 250),
+        int(context.capital_simulations or 500),
+    )
     summary = data["capital_summary"].iloc[0].to_dict()
 
     metric_cols = st.columns(6)
-    metric_cols[0].metric("Economic capital", f"EUR {summary['economic_capital']:,.0f}")
-    metric_cols[1].metric("VaR 99.5%", f"EUR {summary['var_995']:,.0f}")
-    metric_cols[2].metric("TVaR 99.5%", f"EUR {summary['tvar_995']:,.0f}")
-    metric_cols[3].metric("Standard Formula SCR", f"EUR {summary['standard_formula_scr']:,.0f}")
-    metric_cols[4].metric("MCR", f"EUR {summary['mcr']:,.0f}")
-    metric_cols[5].metric("Solvency ratio", f"{summary['solvency_ratio']:.1%}")
+    metric_cols[0].metric("Economic capital", format_eur(summary["economic_capital"]))
+    metric_cols[1].metric("VaR 99.5%", format_eur(summary["var_995"]))
+    metric_cols[2].metric("TVaR 99.5%", format_eur(summary["tvar_995"]))
+    metric_cols[3].metric("Standard Formula SCR", format_eur(summary["standard_formula_scr"]))
+    metric_cols[4].metric("MCR", format_eur(summary["mcr"]))
+    metric_cols[5].metric("Solvency ratio", format_percent(summary["solvency_ratio"]))
 
     st.markdown("### One-Year Loss Distribution")
     st.plotly_chart(
@@ -70,7 +86,7 @@ def render_capital_model() -> None:
             nbins=50,
             title="One-Year Own Funds Loss",
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### Capital Contributions")
@@ -85,37 +101,37 @@ def render_capital_model() -> None:
     contribution_cols = st.columns(4)
     contribution_cols[0].metric(
         "Reserve risk contribution",
-        f"EUR {summary['reserve_risk_contribution']:,.0f}",
+        format_eur(summary["reserve_risk_contribution"]),
     )
     contribution_cols[1].metric(
         "Premium risk contribution",
-        f"EUR {summary['premium_risk_contribution']:,.0f}",
+        format_eur(summary["premium_risk_contribution"]),
     )
     contribution_cols[2].metric(
         "Market risk contribution",
-        f"EUR {summary['market_risk_contribution']:,.0f}",
+        format_eur(summary["market_risk_contribution"]),
     )
     contribution_cols[3].metric(
         "Operational risk",
-        f"EUR {summary['operational_risk']:,.0f}",
+        format_eur(summary["operational_risk"]),
     )
     st.plotly_chart(
         px.bar(contributions, x="component", y="amount", title="One-Year Capital Contributions"),
-        use_container_width=True,
+        width="stretch",
     )
-    st.dataframe(contributions, hide_index=True, use_container_width=True)
+    st.dataframe(contributions, hide_index=True, width="stretch")
 
     st.markdown("### Simplified Standard Formula SCR")
-    st.dataframe(data["standard_formula_modules"], hide_index=True, use_container_width=True)
+    st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
 
     st.markdown("### Non-Life Premium And Reserve Risk By LoB")
-    st.dataframe(data["standard_formula_by_lob"], hide_index=True, use_container_width=True)
+    st.dataframe(data["standard_formula_by_lob"], hide_index=True, width="stretch")
 
     st.markdown("### MCR")
-    st.dataframe(data["mcr"], hide_index=True, use_container_width=True)
+    st.dataframe(data["mcr"], hide_index=True, width="stretch")
 
     st.markdown("### Stress Summaries")
-    st.dataframe(data["stress_summaries"], hide_index=True, use_container_width=True)
+    st.dataframe(data["stress_summaries"], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

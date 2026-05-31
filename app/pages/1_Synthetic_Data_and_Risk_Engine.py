@@ -5,17 +5,17 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from app.components import format_count, page_shell, render_validation_badges
 from miniinsure.simulation.synthetic_reality import (
     generate_synthetic_reality,
     validation_summary_dict,
 )
-from miniinsure.utils import PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
-def load_small_synthetic_reality() -> dict[str, pd.DataFrame | dict[str, object]]:
-    """Generate deterministic small-mode policies, claims, and observed snapshot."""
-    reality = generate_synthetic_reality(portfolio_mode="small")
+def load_synthetic_reality(portfolio_mode: str, seed: int) -> dict[str, pd.DataFrame | dict[str, object]]:
+    """Generate deterministic policies, claims, and observed snapshot."""
+    reality = generate_synthetic_reality(portfolio_mode=portfolio_mode, seed=seed)
     return {
         "policies": reality.policies,
         "claims": reality.claims,
@@ -29,16 +29,16 @@ def load_small_synthetic_reality() -> dict[str, pd.DataFrame | dict[str, object]
 
 def render_validation_page() -> None:
     """Render the fixture validation page."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - Synthetic Data", layout="wide")
-
-    st.title("Synthetic Data And Risk Engine")
-    st.info(
-        "This phase generates deterministic small-mode policies, claims, payments, "
+    context = page_shell(
+        page_title="Synthetic Data And Risk Engine",
+        subtitle=(
+        "This page generates deterministic scenario-mode policies, claims, payments, "
         "case reserves, catastrophe events, and an observed valuation snapshot. Hidden "
         "synthetic truth is isolated from app modelling inputs."
+        ),
     )
 
-    reality = load_small_synthetic_reality()
+    reality = load_synthetic_reality(context.portfolio_mode, context.seed)
     policies = reality["policies"]
     claims = reality["claims"]
     payments = reality["payments"]
@@ -46,25 +46,20 @@ def render_validation_page() -> None:
     catastrophe_events = reality["catastrophe_events"]
     observed_snapshot = reality["observed_valuation_snapshot"]
     summary = reality["validation"]
-    status = str(summary["status"]).upper()
 
     top_cols = st.columns(6)
-    top_cols[0].metric("Policy count", f"{len(policies):,}")
-    top_cols[1].metric("Claim count", f"{len(claims):,}")
-    top_cols[2].metric("Payment count", f"{len(payments):,}")
-    top_cols[3].metric("Case reserve count", f"{len(case_reserves):,}")
-    top_cols[4].metric("Catastrophe event count", f"{len(catastrophe_events):,}")
-    top_cols[5].metric("Observed snapshot count", f"{len(observed_snapshot):,}")
+    top_cols[0].metric("Policy count", format_count(len(policies)))
+    top_cols[1].metric("Claim count", format_count(len(claims)))
+    top_cols[2].metric("Payment count", format_count(len(payments)))
+    top_cols[3].metric("Case reserve count", format_count(len(case_reserves)))
+    top_cols[4].metric("Catastrophe event count", format_count(len(catastrophe_events)))
+    top_cols[5].metric("Observed snapshot count", format_count(len(observed_snapshot)))
 
-    status_cols = st.columns(3)
-    status_cols[0].metric("Validation status", status)
-    status_cols[1].metric("Errors", int(summary["error_count"]))
-    status_cols[2].metric("Warnings", int(summary["warning_count"]))
-
-    if int(summary["error_count"]) > 0:
-        st.error("Validation errors are export-blocking.")
-    else:
-        st.success("No validation errors found. Future export actions would not be blocked.")
+    render_validation_badges(
+        status=str(summary["status"]),
+        error_count=int(summary["error_count"]),
+        warning_count=int(summary["warning_count"]),
+    )
 
     st.markdown("### Counts By Underwriting Year")
     counts_by_year = (
@@ -78,7 +73,7 @@ def render_validation_page() -> None:
     st.dataframe(
         observed_snapshot.head(20),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### Sample Policies")
@@ -96,7 +91,7 @@ def render_validation_page() -> None:
             ]
         ],
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     error_rows = list(summary["errors"])

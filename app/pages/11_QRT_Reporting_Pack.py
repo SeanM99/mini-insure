@@ -5,22 +5,27 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from miniinsure.assumptions import PORTFOLIO_MODES
+from app.components import page_shell, render_validation_badges
 from miniinsure.qrt.export import generate_qrt_pack, qrt_pack_to_excel_bytes, qrt_pack_to_zip_bytes
 from miniinsure.qrt.mappings import export_names
 from miniinsure.qrt.validation import validate_qrt_pack, validation_summary
 from miniinsure.reporting import generate_board_risk_report_markdown, calculate_reporting_workflow
-from miniinsure.utils import MASTER_SEED, PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
-def load_qrt_data(scenario_name: str, portfolio_mode: str, seed: int) -> dict[str, object]:
+def load_qrt_data(
+    scenario_name: str,
+    portfolio_mode: str,
+    seed: int,
+    reserve_risk_simulations: int,
+    capital_simulations: int,
+) -> dict[str, object]:
     """Load reporting workflow, QRT pack, and validation for display."""
     workflow = calculate_reporting_workflow(
         scenario_name=scenario_name,
         portfolio_mode=portfolio_mode,
-        reserve_risk_simulations=250,
-        capital_simulations=500,
+        reserve_risk_simulations=reserve_risk_simulations,
+        capital_simulations=capital_simulations,
         seed=seed,
     )
     pack = generate_qrt_pack(
@@ -51,18 +56,29 @@ def load_qrt_data(scenario_name: str, portfolio_mode: str, seed: int) -> dict[st
 
 def render_qrt_reporting_pack() -> None:
     """Render mock QRT pack outputs."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - QRT Reporting Pack", layout="wide")
-    st.title("QRT Reporting Pack")
-    st.warning(
-        "These are mock QRT-shaped educational outputs only. The app does not create, validate, or export real XBRL."
+    context = page_shell(
+        page_title="QRT Reporting Pack",
+        subtitle=(
+            "Mock QRT-shaped templates for educational review. These are not regulatory "
+            "returns and do not contain real XBRL."
+        ),
+        show_reserve_risk_simulations=True,
+        reserve_risk_default=250,
+        reserve_risk_min=50,
+        reserve_risk_max=5_000,
+        show_capital_simulations=True,
+        capital_default=500,
+        capital_min=100,
+        capital_max=5_000,
     )
 
-    controls = st.columns([2, 1, 1])
-    scenario_name = controls[0].text_input("Scenario name", value="Base")
-    portfolio_mode = controls[1].selectbox("Portfolio mode", options=list(PORTFOLIO_MODES), index=0)
-    seed = int(controls[2].number_input("Seed", min_value=1, value=MASTER_SEED, step=1))
-
-    data = load_qrt_data(scenario_name, portfolio_mode, seed)
+    data = load_qrt_data(
+        context.scenario_name,
+        context.portfolio_mode,
+        context.seed,
+        int(context.reserve_risk_simulations or 250),
+        int(context.capital_simulations or 500),
+    )
     pack: dict[str, pd.DataFrame] = data["pack"]  # type: ignore[assignment]
     validation: pd.DataFrame = data["validation"]  # type: ignore[assignment]
     summary = data["summary"]  # type: ignore[assignment]
@@ -72,19 +88,25 @@ def render_qrt_reporting_pack() -> None:
     metric_cols[0].metric("Validation status", str(summary["status"]).upper())
     metric_cols[1].metric("Blocking errors", int(summary["error_count"]))
     metric_cols[2].metric("Warnings", int(summary["warning_count"]))
+    render_validation_badges(
+        status=str(summary["status"]),
+        error_count=int(summary["error_count"]),
+        warning_count=int(summary["warning_count"]),
+        label="Mock QRT validation",
+    )
 
     st.markdown("### Applicability Matrix")
-    st.dataframe(pack["S.01.01.02"], hide_index=True, use_container_width=True)
+    st.dataframe(pack["S.01.01.02"], hide_index=True, width="stretch")
 
     st.markdown("### Template Viewer")
     template = st.selectbox("Template", options=list(pack.keys()), index=0)
-    st.dataframe(pack[template], hide_index=True, use_container_width=True)
+    st.dataframe(pack[template], hide_index=True, width="stretch")
 
     st.markdown("### Validation Report")
     if validation.empty:
         st.success("No QRT validation messages.")
     else:
-        st.dataframe(validation, hide_index=True, use_container_width=True)
+        st.dataframe(validation, hide_index=True, width="stretch")
         if bool(summary["export_blocked"]):
             st.error("Export is blocked because validation errors are present.")
         else:

@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app.components import format_eur, format_percent, page_shell, render_validation_badges
 from miniinsure.reserving.deterministic_methods import (
     TAIL_FACTORS,
     deterministic_reserving_results,
@@ -19,13 +20,16 @@ from miniinsure.reserving.triangles import (
 from miniinsure.reserving.reserve_risk import QUICK_MODE_SIMULATIONS, simulate_reserve_risk_quick
 from miniinsure.reserving.technical_provisions import calculate_technical_provisions
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
-from miniinsure.utils import MASTER_SEED, PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
-def load_reserving_data(reserve_risk_seed: int, reserve_risk_simulations: int) -> dict[str, pd.DataFrame]:
+def load_reserving_data(
+    portfolio_mode: str,
+    seed: int,
+    reserve_risk_simulations: int,
+) -> dict[str, pd.DataFrame]:
     """Generate observed data and deterministic reserving outputs."""
-    reality = generate_synthetic_reality(portfolio_mode="small")
+    reality = generate_synthetic_reality(portfolio_mode=portfolio_mode, seed=seed)
     triangles = build_annual_triangles(
         reality.observed_valuation_snapshot,
         reality.payments,
@@ -54,7 +58,7 @@ def load_reserving_data(reserve_risk_seed: int, reserve_risk_simulations: int) -
         reality.observed_valuation_snapshot,
         results,
         n_simulations=reserve_risk_simulations,
-        seed=reserve_risk_seed,
+        seed=seed,
     )
     return {
         "paid_triangle": triangles.paid,
@@ -78,36 +82,26 @@ def load_reserving_data(reserve_risk_seed: int, reserve_risk_simulations: int) -
 
 def render_technical_provisions() -> None:
     """Render deterministic reserving results."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - Technical Provisions", layout="wide")
-    st.title("Technical Provisions")
-    st.info(
-        "This page shows deterministic technical provisions and quick-mode one-year reserve risk "
-        "from observed valuation data only. Full reserve-risk mode settings will be exposed later."
+    context = page_shell(
+        page_title="Technical Provisions",
+        subtitle=(
+            "Deterministic technical provisions and quick-mode one-year reserve risk from "
+            "observed valuation data only."
+        ),
+        show_reserve_risk_simulations=True,
+        reserve_risk_default=QUICK_MODE_SIMULATIONS,
+        reserve_risk_min=100,
+        reserve_risk_max=5_000,
     )
 
-    control_cols = st.columns(3)
-    reserve_risk_seed = int(
-        control_cols[0].number_input(
-            "Reserve risk seed",
-            min_value=1,
-            max_value=2_147_483_647,
-            value=MASTER_SEED,
-            step=1,
-        )
-    )
-    reserve_risk_simulations = int(
-        control_cols[1].number_input(
-            "Quick-mode reserve simulations",
-            min_value=100,
-            max_value=5_000,
-            value=QUICK_MODE_SIMULATIONS,
-            step=100,
-        )
-    )
-    if control_cols[2].button("Rerun reserve risk"):
+    if st.button("Rerun reserve risk"):
         st.cache_data.clear()
 
-    data = load_reserving_data(reserve_risk_seed, reserve_risk_simulations)
+    data = load_reserving_data(
+        context.portfolio_mode,
+        context.seed,
+        int(context.reserve_risk_simulations or QUICK_MODE_SIMULATIONS),
+    )
     paid_triangle = data["paid_triangle"]
     incurred_triangle = data["incurred_triangle"]
     reserving_results = data["reserving_results"]
@@ -117,24 +111,28 @@ def render_technical_provisions() -> None:
 
     validation_messages = data["validation_messages"]
     if validation_messages.empty:
-        st.success("Paid triangle validation passed: cumulative paid is non-decreasing.")
+        render_validation_badges(status="pass", label="Paid triangle validation")
     else:
-        st.error("Paid triangle validation found blocking issues.")
-        st.dataframe(validation_messages, hide_index=True, use_container_width=True)
+        render_validation_badges(
+            status="blocked",
+            error_count=len(validation_messages),
+            label="Paid triangle validation",
+        )
+        st.dataframe(validation_messages, hide_index=True, width="stretch")
 
     st.markdown("### Solvency II-Style Technical Provisions")
     metric_cols = st.columns(6)
-    metric_cols[0].metric("Claims provision", f"EUR {provisions_summary['claims_provision']:,.0f}")
-    metric_cols[1].metric("Premium provision", f"EUR {provisions_summary['premium_provision']:,.0f}")
-    metric_cols[2].metric("Reinsurance recoverables", f"EUR {provisions_summary['reinsurance_recoverables']:,.0f}")
-    metric_cols[3].metric("Risk margin", f"EUR {provisions_summary['risk_margin']:,.0f}")
+    metric_cols[0].metric("Claims provision", format_eur(provisions_summary["claims_provision"]))
+    metric_cols[1].metric("Premium provision", format_eur(provisions_summary["premium_provision"]))
+    metric_cols[2].metric("Reinsurance recoverables", format_eur(provisions_summary["reinsurance_recoverables"]))
+    metric_cols[3].metric("Risk margin", format_eur(provisions_summary["risk_margin"]))
     metric_cols[4].metric(
         "Gross technical provisions",
-        f"EUR {provisions_summary['gross_technical_provisions']:,.0f}",
+        format_eur(provisions_summary["gross_technical_provisions"]),
     )
     metric_cols[5].metric(
         "Net technical provisions",
-        f"EUR {provisions_summary['net_technical_provisions']:,.0f}",
+        format_eur(provisions_summary["net_technical_provisions"]),
     )
 
     if provisions_summary["reconciliation_status"] == "pass":
@@ -164,25 +162,25 @@ def render_technical_provisions() -> None:
             ]
         ),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### One-Year Reserve Risk Quick Mode")
     risk_cols = st.columns(5)
-    risk_cols[0].metric("Reserve capital", f"EUR {reserve_risk_summary['reserve_capital']:,.0f}")
-    risk_cols[1].metric("Mean reserve loss", f"EUR {reserve_risk_summary['mean']:,.0f}")
-    risk_cols[2].metric("VaR 99.5%", f"EUR {reserve_risk_summary['var_995']:,.0f}")
-    risk_cols[3].metric("TVaR 99.5%", f"EUR {reserve_risk_summary['tvar_995']:,.0f}")
+    risk_cols[0].metric("Reserve capital", format_eur(reserve_risk_summary["reserve_capital"]))
+    risk_cols[1].metric("Mean reserve loss", format_eur(reserve_risk_summary["mean"]))
+    risk_cols[2].metric("VaR 99.5%", format_eur(reserve_risk_summary["var_995"]))
+    risk_cols[3].metric("TVaR 99.5%", format_eur(reserve_risk_summary["tvar_995"]))
     risk_cols[4].metric(
         "Adverse probability",
-        f"{reserve_risk_summary['probability_of_adverse_development']:.1%}",
+        format_percent(reserve_risk_summary["probability_of_adverse_development"]),
     )
     st.caption(
         f"Quick mode uses {int(reserve_risk_settings['simulation_count']):,} simulations "
         f"with seed {int(reserve_risk_settings['seed'])}. Re-running with the same seed "
         "and simulation count reproduces the same distribution."
     )
-    st.dataframe(data["reserve_risk_summary"], hide_index=True, use_container_width=True)
+    st.dataframe(data["reserve_risk_summary"], hide_index=True, width="stretch")
     st.plotly_chart(
         px.histogram(
             data["reserve_risk_simulations"],
@@ -190,25 +188,25 @@ def render_technical_provisions() -> None:
             nbins=50,
             title="One-Year Reserve Loss Distribution",
         ),
-        use_container_width=True,
+        width="stretch",
     )
     st.markdown("### Reserve Risk Components")
-    st.dataframe(data["reserve_risk_component_summary"], hide_index=True, use_container_width=True)
+    st.dataframe(data["reserve_risk_component_summary"], hide_index=True, width="stretch")
 
     st.markdown("### Paid Triangle")
     st.dataframe(
         triangle_to_matrix(paid_triangle, "cumulative_paid"),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### Incurred Triangle")
     st.dataframe(
         triangle_to_matrix(incurred_triangle, "cumulative_incurred"),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### Development Factors")
-    st.dataframe(data["development_factors"], hide_index=True, use_container_width=True)
+    st.dataframe(data["development_factors"], hide_index=True, width="stretch")
 
     st.markdown("### Selected Deterministic Reserve")
     display_columns = [
@@ -228,7 +226,7 @@ def render_technical_provisions() -> None:
             ["solvency_ii_lob", "homogeneous_risk_group", "origin_year"]
         ),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### Selected Reserve By LoB And HRG")
@@ -241,16 +239,16 @@ def render_technical_provisions() -> None:
         )
         .sort_values(["solvency_ii_lob", "homogeneous_risk_group"])
     )
-    st.dataframe(summary, hide_index=True, use_container_width=True)
+    st.dataframe(summary, hide_index=True, width="stretch")
 
     st.markdown("### Claims Provision Cash Flows")
-    st.dataframe(data["claims_cashflows"].head(60), hide_index=True, use_container_width=True)
+    st.dataframe(data["claims_cashflows"].head(60), hide_index=True, width="stretch")
 
     st.markdown("### Reinsurance Recoverables Cash Flows")
-    st.dataframe(data["reinsurance_cashflows"], hide_index=True, use_container_width=True)
+    st.dataframe(data["reinsurance_cashflows"], hide_index=True, width="stretch")
 
     st.markdown("### Risk Margin Runoff")
-    st.dataframe(data["risk_margin_runoff"], hide_index=True, use_container_width=True)
+    st.dataframe(data["risk_margin_runoff"], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

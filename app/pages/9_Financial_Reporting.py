@@ -5,9 +5,8 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from miniinsure.assumptions import PORTFOLIO_MODES
+from app.components import format_eur, format_percent, page_shell, render_status_badge
 from miniinsure.reporting import ReportingWorkflowResult, calculate_reporting_workflow
-from miniinsure.utils import MASTER_SEED, PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
@@ -15,13 +14,15 @@ def load_reporting_data(
     scenario_name: str,
     portfolio_mode: str,
     seed: int,
+    reserve_risk_simulations: int,
+    capital_simulations: int,
 ) -> ReportingWorkflowResult:
     """Load the cached reporting workflow."""
     return calculate_reporting_workflow(
         scenario_name=scenario_name,
         portfolio_mode=portfolio_mode,
-        reserve_risk_simulations=250,
-        capital_simulations=500,
+        reserve_risk_simulations=reserve_risk_simulations,
+        capital_simulations=capital_simulations,
         seed=seed,
     )
 
@@ -35,51 +36,61 @@ def _format_amount_table(frame: pd.DataFrame) -> pd.DataFrame:
 
 def render_financial_reporting() -> None:
     """Render financial reporting outputs."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - Financial Reporting", layout="wide")
-    st.title("Financial Reporting")
-    st.info(
-        "This page shows educational management reporting and a Solvency II-style balance sheet. "
-        "It is not a statutory account or regulatory filing."
+    context = page_shell(
+        page_title="Financial Reporting",
+        subtitle=(
+            "Educational management reporting and a Solvency II-style balance sheet. "
+            "This is not a statutory account or regulatory filing."
+        ),
+        show_reserve_risk_simulations=True,
+        reserve_risk_default=250,
+        reserve_risk_min=50,
+        reserve_risk_max=5_000,
+        show_capital_simulations=True,
+        capital_default=500,
+        capital_min=100,
+        capital_max=5_000,
     )
 
-    controls = st.columns([2, 1, 1])
-    scenario_name = controls[0].text_input("Scenario name", value="Base")
-    portfolio_mode = controls[1].selectbox("Portfolio mode", options=list(PORTFOLIO_MODES), index=0)
-    seed = int(controls[2].number_input("Seed", min_value=1, value=MASTER_SEED, step=1))
-
-    workflow = load_reporting_data(scenario_name, portfolio_mode, seed)
+    workflow = load_reporting_data(
+        context.scenario_name,
+        context.portfolio_mode,
+        context.seed,
+        int(context.reserve_risk_simulations or 250),
+        int(context.capital_simulations or 500),
+    )
     financial = workflow.financial
     income = financial.income_statement.set_index("line_item")["amount"].to_dict()
     kpis = financial.kpis.set_index("metric")["value"].to_dict()
 
     metric_cols = st.columns(5)
-    metric_cols[0].metric("Gross earned premium", f"EUR {income['gross_earned_premium']:,.0f}")
-    metric_cols[1].metric("Net claims incurred", f"EUR {income['net_claims_incurred']:,.0f}")
-    metric_cols[2].metric("Expenses", f"EUR {income['expenses']:,.0f}")
-    metric_cols[3].metric("Combined ratio", f"{kpis['combined_ratio']:.1%}")
-    metric_cols[4].metric("Return on capital", f"{kpis['return_on_capital']:.1%}")
+    metric_cols[0].metric("Gross earned premium", format_eur(income["gross_earned_premium"]))
+    metric_cols[1].metric("Net claims incurred", format_eur(income["net_claims_incurred"]))
+    metric_cols[2].metric("Expenses", format_eur(income["expenses"]))
+    metric_cols[3].metric("Combined ratio", format_percent(kpis["combined_ratio"]))
+    metric_cols[4].metric("Return on capital", format_percent(kpis["return_on_capital"]))
 
     st.markdown("### Management Income Statement")
-    st.dataframe(_format_amount_table(financial.income_statement), hide_index=True, use_container_width=True)
+    st.dataframe(_format_amount_table(financial.income_statement), hide_index=True, width="stretch")
 
     st.markdown("### KPIs")
     kpi_display = financial.kpis.copy()
     kpi_display["value"] = kpi_display.apply(
-        lambda row: f"{float(row['value']):.1%}",
+        lambda row: format_percent(float(row["value"])),
         axis=1,
     )
-    st.dataframe(kpi_display, hide_index=True, use_container_width=True)
+    st.dataframe(kpi_display, hide_index=True, width="stretch")
 
     st.markdown("### Solvency II-Style Balance Sheet")
-    st.dataframe(_format_amount_table(financial.balance_sheet), hide_index=True, use_container_width=True)
+    st.dataframe(_format_amount_table(financial.balance_sheet), hide_index=True, width="stretch")
 
     st.markdown("### Reconciliation Checks")
-    st.dataframe(financial.reconciliations, hide_index=True, use_container_width=True)
+    st.dataframe(financial.reconciliations, hide_index=True, width="stretch")
 
     if (financial.reconciliations["status"] == "fail").any():
-        st.error("One or more reporting reconciliations failed.")
+        render_status_badge("Reporting reconciliations", "fail")
     else:
-        st.success("Reporting reconciliations passed.")
+        render_status_badge("Reporting reconciliations", "pass")
 
 
 if __name__ == "__main__":

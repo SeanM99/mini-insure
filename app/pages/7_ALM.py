@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app.components import format_eur, page_shell, render_status_badge
 from miniinsure.alm import alm_summary, combine_liability_cashflows
 from miniinsure.reserving.deterministic_methods import deterministic_reserving_results
 from miniinsure.reserving.reserve_risk import simulate_reserve_risk_quick
@@ -14,13 +15,12 @@ from miniinsure.reserving.triangles import build_annual_triangles
 from miniinsure.risk_engine.dependency import fixed_correlation_matrix, validate_dependency_matrix
 from miniinsure.simulation.economic_scenarios import risk_free_curve_frame
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
-from miniinsure.utils import MASTER_SEED, PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
-def load_alm_data() -> dict[str, pd.DataFrame]:
+def load_alm_data(portfolio_mode: str, seed: int, reserve_risk_simulations: int) -> dict[str, pd.DataFrame]:
     """Generate deterministic liabilities, reserve capital proxy, and ALM tables."""
-    reality = generate_synthetic_reality(portfolio_mode="small")
+    reality = generate_synthetic_reality(portfolio_mode=portfolio_mode, seed=seed)
     triangles = build_annual_triangles(
         reality.observed_valuation_snapshot,
         reality.payments,
@@ -43,8 +43,8 @@ def load_alm_data() -> dict[str, pd.DataFrame]:
         reality.policies,
         reality.observed_valuation_snapshot,
         reserving_results,
-        n_simulations=250,
-        seed=MASTER_SEED,
+        n_simulations=reserve_risk_simulations,
+        seed=seed,
     )
     liability_cashflows = combine_liability_cashflows(
         claims_cashflows=provisions.claims_provision.cashflows,
@@ -75,7 +75,7 @@ def load_alm_data() -> dict[str, pd.DataFrame]:
                     "opening_liabilities": opening_liabilities,
                     "scr": scr,
                     "opening_assets": opening_liabilities + 1.40 * scr,
-                    "reserve_risk_simulations_for_scr_proxy": 250,
+                    "reserve_risk_simulations_for_scr_proxy": reserve_risk_simulations,
                 }
             ]
         ),
@@ -84,34 +84,38 @@ def load_alm_data() -> dict[str, pd.DataFrame]:
 
 def render_alm_page() -> None:
     """Render ALM summaries."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - ALM", layout="wide")
-    st.title("ALM")
-    st.info(
-        "This page shows educational ALM summaries from deterministic liabilities, a quick-mode "
-        "reserve capital proxy, and the fixed Gaussian copula dependency model."
+    context = page_shell(
+        page_title="ALM",
+        subtitle=(
+            "Educational ALM summaries from deterministic liabilities, a quick-mode reserve "
+            "capital proxy, and the fixed Gaussian copula dependency model."
+        ),
+        show_reserve_risk_simulations=True,
+        reserve_risk_default=250,
+        reserve_risk_min=50,
+        reserve_risk_max=5_000,
     )
 
-    data = load_alm_data()
+    data = load_alm_data(
+        context.portfolio_mode,
+        context.seed,
+        int(context.reserve_risk_simulations or 250),
+    )
     validation = data["dependency_validation"].iloc[0].to_dict()
-    if validation["status"] == "pass":
-        st.success(
-            f"Dependency matrix validation: PASS. Minimum eigenvalue "
-            f"{validation['minimum_eigenvalue']:.6f}."
-        )
-    else:
-        st.error(
-            f"Dependency matrix validation: FAIL. Minimum eigenvalue "
-            f"{validation['minimum_eigenvalue']:.6f}."
-        )
+    render_status_badge(
+        "Dependency matrix validation",
+        str(validation["status"]),
+        detail=f"Minimum eigenvalue {validation['minimum_eigenvalue']:.6f}.",
+    )
 
     col_assets, col_scr, col_opening = st.columns(3)
     calibration = data["calibration"].iloc[0].to_dict()
-    col_assets.metric("Opening assets", f"EUR {calibration['opening_assets']:,.0f}")
-    col_scr.metric("SCR proxy", f"EUR {calibration['scr']:,.0f}")
-    col_opening.metric("Opening liabilities", f"EUR {calibration['opening_liabilities']:,.0f}")
+    col_assets.metric("Opening assets", format_eur(calibration["opening_assets"]))
+    col_scr.metric("SCR proxy", format_eur(calibration["scr"]))
+    col_opening.metric("Opening liabilities", format_eur(calibration["opening_liabilities"]))
 
     st.markdown("### Risk-Free Curve")
-    st.dataframe(data["risk_free_curve"], hide_index=True, use_container_width=True)
+    st.dataframe(data["risk_free_curve"], hide_index=True, width="stretch")
 
     st.markdown("### Asset Allocation")
     st.plotly_chart(
@@ -121,25 +125,25 @@ def render_alm_page() -> None:
             values="market_value",
             title="Opening Asset Allocation",
         ),
-        use_container_width=True,
+        width="stretch",
     )
-    st.dataframe(data["asset_allocation"], hide_index=True, use_container_width=True)
+    st.dataframe(data["asset_allocation"], hide_index=True, width="stretch")
 
     st.markdown("### Liability Cash-Flow Profile")
-    st.dataframe(data["liability_cashflow_profile"], hide_index=True, use_container_width=True)
+    st.dataframe(data["liability_cashflow_profile"], hide_index=True, width="stretch")
 
     st.markdown("### Liquidity Gap")
-    st.dataframe(data["liquidity_gap"], hide_index=True, use_container_width=True)
+    st.dataframe(data["liquidity_gap"], hide_index=True, width="stretch")
 
     st.markdown("### Duration Gap")
-    st.dataframe(data["duration_gap"], hide_index=True, use_container_width=True)
+    st.dataframe(data["duration_gap"], hide_index=True, width="stretch")
 
     st.markdown("### Simple Market Stresses")
-    st.dataframe(data["market_stresses"], hide_index=True, use_container_width=True)
+    st.dataframe(data["market_stresses"], hide_index=True, width="stretch")
 
     st.markdown("### Dependency Matrix Validation")
-    st.dataframe(data["dependency_validation"], hide_index=True, use_container_width=True)
-    st.dataframe(data["dependency_matrix"], hide_index=True, use_container_width=True)
+    st.dataframe(data["dependency_validation"], hide_index=True, width="stretch")
+    st.dataframe(data["dependency_matrix"], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

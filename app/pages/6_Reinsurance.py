@@ -6,19 +6,19 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
+from app.components import format_eur, page_shell
 from miniinsure.simulation.reinsurance_simulation import (
     ReinsuranceProgram,
     apply_default_reinsurance_program,
     gross_to_net_reconciliation,
 )
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
-from miniinsure.utils import PROJECT_NAME
 
 
 @st.cache_data(show_spinner=False)
-def load_small_observed_data() -> dict[str, pd.DataFrame]:
+def load_observed_data(portfolio_mode: str, seed: int) -> dict[str, pd.DataFrame]:
     """Generate deterministic observed data for reinsurance calculations."""
-    reality = generate_synthetic_reality(portfolio_mode="small")
+    reality = generate_synthetic_reality(portfolio_mode=portfolio_mode, seed=seed)
     return {
         "policies": reality.policies,
         "observed_valuation_snapshot": reality.observed_valuation_snapshot,
@@ -27,12 +27,12 @@ def load_small_observed_data() -> dict[str, pd.DataFrame]:
 
 def render_reinsurance_page() -> None:
     """Render fixed reinsurance program outputs."""
-    st.set_page_config(page_title=f"{PROJECT_NAME} - Reinsurance", layout="wide")
-    st.title("Reinsurance")
-    st.info(
-        "This page applies the fixed default reinsurance program directly to observed "
-        "claim estimates. Treaty order is deductibles and policy limits, quota share, "
-        "per-risk XOL, then aggregate stop loss."
+    context = page_shell(
+        page_title="Reinsurance",
+        subtitle=(
+            "Fixed default reinsurance program applied directly to observed claim estimates. "
+            "Treaty order is deductibles and policy limits, quota share, per-risk XOL, then aggregate stop loss."
+        ),
     )
 
     quota_share_enabled = st.toggle("Enable quota share", value=False)
@@ -49,7 +49,7 @@ def render_reinsurance_page() -> None:
         quota_share_enabled=quota_share_enabled,
         quota_share_ceded_pct=ceded_pct / 100.0 if quota_share_enabled else 0.0,
     )
-    data = load_small_observed_data()
+    data = load_observed_data(context.portfolio_mode, context.seed)
     result = apply_default_reinsurance_program(
         data["observed_valuation_snapshot"],
         data["policies"],
@@ -58,14 +58,14 @@ def render_reinsurance_page() -> None:
     reconciliation = gross_to_net_reconciliation(result)
 
     col_gross, col_ceded, col_recoveries, col_default, col_net = st.columns(5)
-    col_gross.metric("Gross losses", f"EUR {result.summary['gross_loss']:,.0f}")
-    col_ceded.metric("Ceded losses", f"EUR {result.summary['quota_share_ceded_loss']:,.0f}")
-    col_recoveries.metric("Recoveries", f"EUR {result.summary['total_recovery']:,.0f}")
+    col_gross.metric("Gross losses", format_eur(result.summary["gross_loss"]))
+    col_ceded.metric("Ceded losses", format_eur(result.summary["quota_share_ceded_loss"]))
+    col_recoveries.metric("Recoveries", format_eur(result.summary["total_recovery"]))
     col_default.metric(
         "Default-adjusted recoverables",
-        f"EUR {result.summary['default_adjusted_recoverable']:,.0f}",
+        format_eur(result.summary["default_adjusted_recoverable"]),
     )
-    col_net.metric("Net losses", f"EUR {result.summary['net_loss']:,.0f}")
+    col_net.metric("Net losses", format_eur(result.summary["net_loss"]))
 
     st.markdown("### Gross-To-Net Reconciliation")
     st.table(reconciliation)
@@ -85,7 +85,7 @@ def render_reinsurance_page() -> None:
             barmode="group",
             title="Gross And Net Reinsurance Results",
         ),
-        use_container_width=True,
+        width="stretch",
     )
 
     st.markdown("### Claim-Level Per-Risk XOL Audit")
@@ -103,7 +103,7 @@ def render_reinsurance_page() -> None:
             ]
         ].sort_values("gross_loss", ascending=False).head(25),
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
     )
 
 
