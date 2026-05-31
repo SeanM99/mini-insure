@@ -6,7 +6,14 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur_m, format_pct, page_shell, render_empty_state, render_error_state
+from app.components import (
+    format_eur_m,
+    format_pct,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+)
 from miniinsure.risk_engine.capital_workflow import calculate_capital_workflow
 
 
@@ -60,6 +67,12 @@ def render_capital_model() -> None:
         capital_default=500,
         capital_min=100,
         capital_max=5_000,
+    )
+    render_page_narrative(
+        showing="One-year economic capital, one-year loss distribution, capital contributions, simplified Standard Formula SCR, MCR, and stresses.",
+        assumptions="Opening balance sheet, reserve-risk quick mode, premium risk approximation, market stresses, own funds, MCR formula, and simulation counts.",
+        test="Rerun with different seeds and simulation counts and compare economic capital against simplified Standard Formula SCR.",
+        limitations="This is a simplified educational capital model, not a regulatory SCR engine.",
     )
 
     try:

@@ -10,6 +10,7 @@ from app.components import (
     page_shell,
     render_empty_state,
     render_error_state,
+    render_page_narrative,
     render_validation_badges,
 )
 from miniinsure.simulation.synthetic_reality import (
@@ -42,6 +43,12 @@ def render_validation_page() -> None:
         "case reserves, catastrophe events, and an observed valuation snapshot. Hidden "
         "synthetic truth is isolated from app modelling inputs."
         ),
+    )
+    render_page_narrative(
+        showing="Deterministic synthetic policies, claims, payments, case reserves, catastrophe events, and observed valuation rows.",
+        assumptions="Portfolio mode, master seed, typed assumption tables, policy mix, pricing assumptions, and claim lifecycle assumptions.",
+        test="Generate a scenario and check record counts, validation status, errors, warnings, and observed valuation samples.",
+        limitations="Synthetic truth is isolated for diagnostics and is not used by reserving, capital, reporting, or QRT pages.",
     )
 
     try:
@@ -116,6 +123,7 @@ def render_validation_page() -> None:
 
     error_rows = list(summary["errors"])
     warning_rows = list(summary["warnings"])
+    validation_report = pd.DataFrame([*error_rows, *warning_rows])
 
     st.markdown("### Errors")
     if error_rows:
@@ -128,6 +136,16 @@ def render_validation_page() -> None:
         st.dataframe(pd.DataFrame(warning_rows), hide_index=True, width="stretch")
     else:
         render_empty_state("No validation warnings.")
+
+    if validation_report.empty:
+        render_empty_state("No validation report CSV is available because there are no validation messages.")
+    else:
+        st.download_button(
+            "Download validation report CSV",
+            data=validation_report.to_csv(index=False),
+            file_name=f"{context.scenario_name.lower().replace(' ', '_')}_data_validation_report.csv",
+            mime="text/csv",
+        )
 
 
 if __name__ == "__main__":

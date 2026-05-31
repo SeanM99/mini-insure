@@ -166,6 +166,28 @@ def render_mock_only_notice() -> None:
     )
 
 
+def render_page_narrative(
+    *,
+    showing: str,
+    assumptions: str,
+    test: str,
+    limitations: str,
+) -> None:
+    """Render a consistent four-part page narrative card row."""
+    st.markdown("### Page Guide")
+    columns = st.columns(4)
+    items = [
+        ("What is this page showing?", showing),
+        ("What assumptions drive it?", assumptions),
+        ("What should the user test here?", test),
+        ("What are the limitations?", limitations),
+    ]
+    for column, (title, body) in zip(columns, items, strict=True):
+        with column.container(border=True):
+            st.markdown(f"**{title}**")
+            st.write(body)
+
+
 def render_empty_state(title: str, detail: str | None = None) -> None:
     """Render a friendly empty-state message."""
     message = title if detail is None else f"{title} {detail}"
@@ -182,6 +204,41 @@ def _render_sidebar_intro() -> None:
     with st.sidebar:
         st.markdown(f"## {PROJECT_NAME}")
         st.caption("Synthetic NL motor insurer")
+        st.markdown("### Workflow Navigation")
+        st.markdown(
+            """
+            **Data**  
+            1. Synthetic Data and Risk Engine  
+            2. Experience Analysis
+
+            **Pricing**  
+            3. Portfolio Overview  
+            4. Pricing
+
+            **Reserving**  
+            5. Technical Provisions
+
+            **Reinsurance**  
+            6. Reinsurance
+
+            **Capital / ALM**  
+            7. Capital Model  
+            8. ALM  
+            9. Solvency II Balance Sheet
+
+            **Financial Reporting**  
+            10. Financial Reporting
+
+            **QRT Reporting**  
+            11. QRT Reporting Pack
+
+            **Board Report**  
+            12. Board Risk Report
+
+            **Governance**  
+            README, audit trail, and user testing docs
+            """
+        )
 
 
 def _inject_css() -> None:

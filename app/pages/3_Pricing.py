@@ -5,7 +5,14 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_eur_raw, format_pct, page_shell, render_empty_state, render_error_state
+from app.components import (
+    format_eur_raw,
+    format_pct,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+)
 from miniinsure.pricing import segment_profitability
 from miniinsure.simulation.policy_generator import generate_policy_data
 
@@ -21,6 +28,12 @@ def render_pricing_page() -> None:
     context = page_shell(
         page_title="Pricing",
         subtitle="Transparent deterministic pricing outputs for the selected scenario.",
+    )
+    render_page_narrative(
+        showing="Average technical premium, charged premium, rate adequacy, and segment profitability by HRG.",
+        assumptions="Base frequency, severity, trend, rating relativities, expenses, commissions, risk load, profit margin, and market cycle factors.",
+        test="Change the portfolio mode or seed and review whether premium adequacy and segment profitability stay plausible.",
+        limitations="No GLMs are implemented yet; this is deterministic pricing for auditability and teaching.",
     )
     st.info("GLM diagnostics will be added after deterministic pricing is stable.")
 

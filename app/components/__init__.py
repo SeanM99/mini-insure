@@ -21,6 +21,7 @@ from app.components.layout import (
     render_empty_state,
     render_error_state,
     render_last_run_metadata,
+    render_page_narrative,
 )
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "render_empty_state",
     "render_error_state",
     "render_last_run_metadata",
+    "render_page_narrative",
     "render_status_badge",
     "render_validation_badges",
 ]

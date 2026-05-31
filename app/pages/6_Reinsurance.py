@@ -6,7 +6,13 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur_m, page_shell, render_empty_state, render_error_state
+from app.components import (
+    format_eur_m,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+)
 from miniinsure.simulation.reinsurance_simulation import (
     ReinsuranceProgram,
     apply_default_reinsurance_program,
@@ -33,6 +39,12 @@ def render_reinsurance_page() -> None:
             "Fixed default reinsurance program applied directly to observed claim estimates. "
             "Treaty order is deductibles and policy limits, quota share, per-risk XOL, then aggregate stop loss."
         ),
+    )
+    render_page_narrative(
+        showing="Gross-to-net losses, quota share controls, XOL recoveries, default-adjusted recoverables, and claim-level audit rows.",
+        assumptions="The fixed default reinsurance program, treaty order, counterparty PD/LGD, and observed claim estimates.",
+        test="Toggle quota share and adjust ceded percentage, then confirm recoveries never exceed eligible loss.",
+        limitations="Only the fixed educational treaty program is implemented; this is not a general treaty modelling framework.",
     )
 
     quota_share_enabled = st.toggle("Enable quota share", value=False)

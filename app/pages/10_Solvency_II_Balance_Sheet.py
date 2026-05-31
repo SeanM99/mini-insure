@@ -5,7 +5,15 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_eur_m, format_pct, page_shell, render_empty_state, render_error_state, render_status_badge
+from app.components import (
+    format_eur_m,
+    format_pct,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+    render_status_badge,
+)
 from miniinsure.risk_engine.capital_workflow import calculate_capital_workflow
 
 
@@ -51,6 +59,12 @@ def render_balance_sheet() -> None:
         capital_default=500,
         capital_min=100,
         capital_max=5_000,
+    )
+    render_page_narrative(
+        showing="Assets, liabilities, technical provisions, own funds, SCR, MCR, solvency ratio, and reconciliation status.",
+        assumptions="Opening assets, net technical provisions, other liabilities, simplified Standard Formula SCR, and MCR/own-funds rules.",
+        test="Check that assets reconcile to liabilities plus own funds and ratios move coherently with scenario controls.",
+        limitations="This is a Solvency II-style educational balance sheet and is not a regulatory balance sheet filing.",
     )
 
     try:

@@ -33,3 +33,13 @@ pytest
 ```bash
 streamlit run app/Home.py
 ```
+
+## Streamlit Community Cloud Deployment
+
+- Repository: `SeanM99/mini-insure`
+- Branch: `main`
+- Main file path: `app/Home.py`
+- Python version: Python 3.12 or later
+- Dependencies: install from `pyproject.toml`
+
+Generated outputs are educational and mock-only. QRT-shaped downloads are not real regulatory filings, and the app does not produce real XBRL.

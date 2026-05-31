@@ -5,7 +5,14 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_count, page_shell, render_empty_state, render_error_state, render_validation_badges
+from app.components import (
+    format_count,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+    render_validation_badges,
+)
 from miniinsure.qrt.export import generate_qrt_pack
 from miniinsure.qrt.mappings import export_names
 from miniinsure.qrt.validation import validate_qrt_pack, validation_summary
@@ -68,6 +75,12 @@ def render_board_risk_report() -> None:
         capital_min=100,
         capital_max=5_000,
     )
+    render_page_narrative(
+        showing="A Markdown board risk report preview with solvency, technical provisions, reserve risk, KRI traffic lights, and validation status.",
+        assumptions="The same reporting workflow, capital model, mock QRT validation, and scenario metadata used elsewhere in the app.",
+        test="Review whether the executive summary, capital figures, validation status, and limitations read clearly for a board audience.",
+        limitations="The report is educational and Markdown-only; it is not an approved risk committee pack or regulatory document.",
+    )
 
     try:
         with st.spinner("Generating board risk report..."):
@@ -99,6 +112,12 @@ def render_board_risk_report() -> None:
     if not validation.empty:
         st.markdown("### Validation Messages")
         st.dataframe(validation, hide_index=True, width="stretch")
+        st.download_button(
+            "Download validation report CSV",
+            data=validation.to_csv(index=False),
+            file_name=f"miniinsure_europe_nl_validation_report_{names.scenario_slug}.csv",
+            mime="text/csv",
+        )
     else:
         render_empty_state("No board pack validation messages.")
 

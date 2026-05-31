@@ -5,7 +5,14 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_count, page_shell, render_empty_state, render_error_state, render_validation_badges
+from app.components import (
+    format_count,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+    render_validation_badges,
+)
 from miniinsure.qrt.export import generate_qrt_pack, qrt_pack_to_excel_bytes, qrt_pack_to_zip_bytes
 from miniinsure.qrt.mappings import export_names
 from miniinsure.qrt.validation import validate_qrt_pack, validation_summary
@@ -71,6 +78,12 @@ def render_qrt_reporting_pack() -> None:
         capital_min=100,
         capital_max=5_000,
     )
+    render_page_narrative(
+        showing="Mock QRT-shaped templates, applicability matrix, validation messages, and export downloads.",
+        assumptions="The shared reporting workflow, typed assumptions, export conventions, mock mappings, and QRT validation rules.",
+        test="Check validation status, review messages, then download mock Excel or ZIP only when validation permits.",
+        limitations="The QRT pack is mock-shaped only and no real XBRL is generated, validated, or submitted.",
+    )
 
     try:
         with st.spinner("Generating mock QRT pack..."):
@@ -121,6 +134,12 @@ def render_qrt_reporting_pack() -> None:
         render_empty_state("No QRT validation messages.")
     else:
         st.dataframe(validation, hide_index=True, width="stretch")
+        st.download_button(
+            "Download validation report CSV",
+            data=validation.to_csv(index=False),
+            file_name=f"miniinsure_europe_nl_validation_report_{names.scenario_slug}.csv",
+            mime="text/csv",
+        )
         if bool(summary["export_blocked"]):
             st.error("Export is blocked because validation errors are present.")
         else:

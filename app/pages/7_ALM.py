@@ -6,7 +6,14 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import format_eur_m, page_shell, render_empty_state, render_error_state, render_status_badge
+from app.components import (
+    format_eur_m,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+    render_status_badge,
+)
 from miniinsure.alm import alm_summary, combine_liability_cashflows
 from miniinsure.reserving.deterministic_methods import deterministic_reserving_results
 from miniinsure.reserving.reserve_risk import simulate_reserve_risk_quick
@@ -94,6 +101,12 @@ def render_alm_page() -> None:
         reserve_risk_default=250,
         reserve_risk_min=50,
         reserve_risk_max=5_000,
+    )
+    render_page_narrative(
+        showing="Risk-free curve, asset allocation, liability cash-flow profile, liquidity gap, duration gap, market stresses, and dependency validation.",
+        assumptions="Opening liabilities, reserve-risk capital proxy, fixed asset weights, curve interpolation, asset durations, and fixed dependency matrix.",
+        test="Check asset calibration, dependency PSD status, liquidity gaps, and duration mismatch under the selected scenario.",
+        limitations="ALM is a simplified summary layer and not a production investment, liquidity, or hedging model.",
     )
 
     try:

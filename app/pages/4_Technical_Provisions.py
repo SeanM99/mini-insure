@@ -12,6 +12,7 @@ from app.components import (
     page_shell,
     render_empty_state,
     render_error_state,
+    render_page_narrative,
     render_status_badge,
     render_validation_badges,
 )
@@ -100,6 +101,12 @@ def render_technical_provisions() -> None:
         reserve_risk_default=QUICK_MODE_SIMULATIONS,
         reserve_risk_min=100,
         reserve_risk_max=5_000,
+    )
+    render_page_narrative(
+        showing="Deterministic reserves, technical provisions, reserve-risk quick mode, triangles, cash flows, and risk margin runoff.",
+        assumptions="Observed valuation data, paid/incurred triangles, selected reserving methods, risk-free curve, expense loadings, and quick-mode simulation settings.",
+        test="Review validation badges, method selection, reserve risk capital, and gross-to-net provision reconciliation.",
+        limitations="Reserve risk is quick mode and stochastic methods are educational approximations, not production reserve-risk models.",
     )
 
     if st.button("Rerun reserve risk"):

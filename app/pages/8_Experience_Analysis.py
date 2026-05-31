@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from app.components import render_empty_state, render_error_state, page_shell
+from app.components import page_shell, render_empty_state, render_error_state, render_page_narrative
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
 
 
@@ -28,6 +28,12 @@ def render_experience_analysis() -> None:
     context = page_shell(
         page_title="Experience Analysis",
         subtitle="Observed experience analysis using valuation data only; hidden synthetic truth is not loaded.",
+    )
+    render_page_narrative(
+        showing="Observed frequency, severity, loss ratio, and paid emergence views through the valuation date.",
+        assumptions="Observed valuation snapshot, visible payments, policy exposures, and case estimates only.",
+        test="Review whether observed experience by year and claim type aligns with the portfolio and pricing views.",
+        limitations="The page deliberately excludes hidden true ultimate fields and future transactions.",
     )
     st.info("Experience views use observed valuation data only. Hidden synthetic truth is not loaded.")
 

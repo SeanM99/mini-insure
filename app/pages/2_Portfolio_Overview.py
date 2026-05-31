@@ -5,7 +5,14 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from app.components import format_count, format_eur_m, page_shell, render_empty_state, render_error_state
+from app.components import (
+    format_count,
+    format_eur_m,
+    page_shell,
+    render_empty_state,
+    render_error_state,
+    render_page_narrative,
+)
 from miniinsure.charts import exposure_by_year, mix_bar, premium_by_year
 from miniinsure.simulation.synthetic_reality import generate_synthetic_reality
 
@@ -27,6 +34,12 @@ def render_portfolio_overview() -> None:
     context = page_shell(
         page_title="Portfolio Overview",
         subtitle="Portfolio mix, exposure, premium, and observed paid experience for the selected scenario.",
+    )
+    render_page_narrative(
+        showing="Portfolio size, observed claim counts, exposure, premium, business mix, LoB mix, and observed paid experience.",
+        assumptions="Policy generation mix, market cycle factors, pricing outputs, and observed claims generated from the selected scenario.",
+        test="Switch portfolio mode and seed, then confirm mix proportions and earned premium remain directionally coherent.",
+        limitations="This is a synthetic management view and does not use hidden ultimate truth.",
     )
 
     try:

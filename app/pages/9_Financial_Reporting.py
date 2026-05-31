@@ -12,6 +12,7 @@ from app.components import (
     page_shell,
     render_empty_state,
     render_error_state,
+    render_page_narrative,
     render_status_badge,
 )
 from miniinsure.reporting import ReportingWorkflowResult, calculate_reporting_workflow
@@ -58,6 +59,12 @@ def render_financial_reporting() -> None:
         capital_default=500,
         capital_min=100,
         capital_max=5_000,
+    )
+    render_page_narrative(
+        showing="Management income statement, KPIs, Solvency II-style balance sheet lines, and reconciliation checks.",
+        assumptions="The shared reporting workflow, technical provisions, reinsurance, capital model, expenses, commissions, and investment result.",
+        test="Review combined ratio, return on capital, and reconciliation statuses for the selected scenario.",
+        limitations="Outputs are educational management/reporting views, not audited accounts or statutory submissions.",
     )
 
     try:
