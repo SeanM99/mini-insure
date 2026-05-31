@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from app.components import (
@@ -102,70 +103,107 @@ def render_qrt_reporting_pack() -> None:
     summary = data["summary"]  # type: ignore[assignment]
     names = export_names(str(data["scenario_name"]))
 
-    metric_cols = st.columns(3)
-    metric_cols[0].metric("Validation status", str(summary["status"]).upper())
-    metric_cols[1].metric("Blocking errors", format_count(int(summary["error_count"]), "errors"))
-    metric_cols[2].metric("Warnings", format_count(int(summary["warning_count"]), "warnings"))
-    render_validation_badges(
-        status=str(summary["status"]),
-        error_count=int(summary["error_count"]),
-        warning_count=int(summary["warning_count"]),
-        label="Mock QRT validation",
-    )
-
-    st.markdown("### Applicability Matrix")
-    if not pack or pack.get("S.01.01.02", pd.DataFrame()).empty:
-        render_empty_state("No applicability matrix rows are available.")
-    else:
-        st.dataframe(pack["S.01.01.02"], hide_index=True, width="stretch")
-
-    st.markdown("### Template Viewer")
-    if not pack:
-        render_empty_state("No mock QRT templates are available.")
-    else:
-        template = st.selectbox("Template", options=list(pack.keys()), index=0)
-        if pack[template].empty:
-            render_empty_state("The selected mock QRT template is empty.")
-        else:
-            st.dataframe(pack[template], hide_index=True, width="stretch")
-
-    st.markdown("### Validation Report")
-    if validation.empty:
-        render_empty_state("No QRT validation messages.")
-    else:
-        st.dataframe(validation, hide_index=True, width="stretch")
-        st.download_button(
-            "Download validation report CSV",
-            data=validation.to_csv(index=False),
-            file_name=f"miniinsure_europe_nl_validation_report_{names.scenario_slug}.csv",
-            mime="text/csv",
-        )
-        if bool(summary["export_blocked"]):
-            st.error("Export is blocked because validation errors are present.")
-        else:
-            st.warning("Only warnings are present. Export remains available.")
-
     xlsx_bytes = qrt_pack_to_excel_bytes(pack)
-    st.download_button(
-        "Download mock QRT Excel",
-        data=xlsx_bytes,
-        file_name=names.qrt_xlsx,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        disabled=bool(summary["export_blocked"]),
-    )
     zip_bytes = qrt_pack_to_zip_bytes(
         pack=pack,
         board_report_markdown=str(data["board_report"]),
         scenario_metadata_json=str(data["metadata_json"]),
         scenario_name=str(data["scenario_name"]),
     )
-    st.download_button(
-        "Download mock QRT ZIP",
-        data=zip_bytes,
-        file_name=names.qrt_zip,
-        mime="application/zip",
-        disabled=bool(summary["export_blocked"]),
+    validation_chart = pd.DataFrame(
+        [
+            {"status": "blocking errors", "count": int(summary["error_count"])},
+            {"status": "warnings", "count": int(summary["warning_count"])},
+            {
+                "status": "passed checks",
+                "count": 1 if int(summary["error_count"]) == 0 else 0,
+            },
+        ]
     )
+
+    tabs = st.tabs([
+        "Export Readiness",
+        "Applicability Matrix",
+        "Template Viewer",
+        "Validation Report",
+        "Source Mappings",
+        "Downloads",
+    ])
+    with tabs[0]:
+        metric_cols = st.columns(3)
+        metric_cols[0].metric("Validation status", str(summary["status"]).upper())
+        metric_cols[1].metric("Blocking errors", format_count(int(summary["error_count"]), "errors"))
+        metric_cols[2].metric("Warnings", format_count(int(summary["warning_count"]), "warnings"))
+        render_validation_badges(
+            status=str(summary["status"]),
+            error_count=int(summary["error_count"]),
+            warning_count=int(summary["warning_count"]),
+            label="Mock QRT validation",
+        )
+        st.plotly_chart(
+            px.bar(validation_chart, x="status", y="count", title="QRT Validation Status Summary"),
+            width="stretch",
+        )
+        if bool(summary["export_blocked"]):
+            st.error("Export is blocked because validation errors are present.")
+        else:
+            st.success("Export is available. Outputs remain mock-only and no real XBRL is produced.")
+
+    with tabs[1]:
+        st.markdown("### Applicability Matrix")
+        if not pack or pack.get("S.01.01.02", pd.DataFrame()).empty:
+            render_empty_state("No applicability matrix rows are available.")
+        else:
+            st.dataframe(pack["S.01.01.02"], hide_index=True, width="stretch")
+
+    with tabs[2]:
+        st.markdown("### Template Viewer")
+        if not pack:
+            render_empty_state("No mock QRT templates are available.")
+        else:
+            template = st.selectbox("Template", options=list(pack.keys()), index=0)
+            if pack[template].empty:
+                render_empty_state("The selected mock QRT template is empty.")
+            else:
+                st.dataframe(pack[template], hide_index=True, width="stretch")
+
+    with tabs[3]:
+        st.markdown("### Validation Report")
+        if validation.empty:
+            render_empty_state("No QRT validation messages.")
+        else:
+            st.dataframe(validation, hide_index=True, width="stretch")
+            st.download_button(
+                "Download validation report CSV",
+                data=validation.to_csv(index=False),
+                file_name=f"miniinsure_europe_nl_validation_report_{names.scenario_slug}.csv",
+                mime="text/csv",
+            )
+
+    with tabs[4]:
+        st.markdown("### Source Mappings")
+        mappings = pack.get("Mappings", pd.DataFrame())
+        if mappings.empty:
+            render_empty_state("No source mapping rows are available.")
+        else:
+            st.dataframe(mappings, hide_index=True, width="stretch")
+
+    with tabs[5]:
+        st.markdown("### Downloads")
+        st.download_button(
+            "Download mock QRT Excel",
+            data=xlsx_bytes,
+            file_name=names.qrt_xlsx,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            disabled=bool(summary["export_blocked"]),
+        )
+        st.download_button(
+            "Download mock QRT ZIP",
+            data=zip_bytes,
+            file_name=names.qrt_zip,
+            mime="application/zip",
+            disabled=bool(summary["export_blocked"]),
+        )
 
 
 if __name__ == "__main__":

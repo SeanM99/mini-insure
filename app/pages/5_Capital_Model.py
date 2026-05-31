@@ -88,29 +88,6 @@ def render_capital_model() -> None:
         st.stop()
     summary = data["capital_summary"].iloc[0].to_dict()
 
-    metric_cols = st.columns(6)
-    metric_cols[0].metric("Economic capital", format_eur_m(summary["economic_capital"]))
-    metric_cols[1].metric("VaR 99.5%", format_eur_m(summary["var_995"]))
-    metric_cols[2].metric("TVaR 99.5%", format_eur_m(summary["tvar_995"]))
-    metric_cols[3].metric("Standard Formula SCR", format_eur_m(summary["standard_formula_scr"]))
-    metric_cols[4].metric("MCR", format_eur_m(summary["mcr"]))
-    metric_cols[5].metric("Solvency ratio", format_pct(summary["solvency_ratio"]))
-
-    st.markdown("### One-Year Loss Distribution")
-    if data["one_year_simulations"].empty:
-        render_empty_state("No one-year loss simulations are available.")
-    else:
-        st.plotly_chart(
-            px.histogram(
-                data["one_year_simulations"],
-                x="one_year_loss",
-                nbins=50,
-                title="One-Year Own Funds Loss",
-            ),
-            width="stretch",
-        )
-
-    st.markdown("### Capital Contributions")
     contributions = pd.DataFrame(
         [
             {"component": "reserve risk", "amount": summary["reserve_risk_contribution"]},
@@ -119,43 +96,91 @@ def render_capital_model() -> None:
             {"component": "operational risk", "amount": summary["operational_risk"]},
         ]
     )
-    contribution_cols = st.columns(4)
-    contribution_cols[0].metric(
-        "Reserve risk contribution",
-        format_eur_m(summary["reserve_risk_contribution"]),
-    )
-    contribution_cols[1].metric(
-        "Premium risk contribution",
-        format_eur_m(summary["premium_risk_contribution"]),
-    )
-    contribution_cols[2].metric(
-        "Market risk contribution",
-        format_eur_m(summary["market_risk_contribution"]),
-    )
-    contribution_cols[3].metric(
-        "Operational risk",
-        format_eur_m(summary["operational_risk"]),
-    )
-    if contributions.empty:
-        render_empty_state("No capital contribution rows are available.")
-    else:
-        st.plotly_chart(
-            px.bar(contributions, x="component", y="amount", title="One-Year Capital Contributions"),
-            width="stretch",
-        )
-        st.dataframe(contributions, hide_index=True, width="stretch")
+    tabs = st.tabs([
+        "Overview",
+        "Economic Capital",
+        "Standard Formula",
+        "Stress Tests",
+        "Simulation Output",
+        "Audit",
+    ])
+    with tabs[0]:
+        metric_cols = st.columns(6)
+        metric_cols[0].metric("Economic capital", format_eur_m(summary["economic_capital"]))
+        metric_cols[1].metric("VaR 99.5%", format_eur_m(summary["var_995"]))
+        metric_cols[2].metric("TVaR 99.5%", format_eur_m(summary["tvar_995"]))
+        metric_cols[3].metric("Standard Formula SCR", format_eur_m(summary["standard_formula_scr"]))
+        metric_cols[4].metric("MCR", format_eur_m(summary["mcr"]))
+        metric_cols[5].metric("Solvency ratio", format_pct(summary["solvency_ratio"]))
+        if contributions.empty:
+            render_empty_state("No capital contribution rows are available.")
+        else:
+            st.plotly_chart(
+                px.bar(contributions, x="component", y="amount", title="One-Year Capital Contributions"),
+                width="stretch",
+            )
+        if not data["standard_formula_modules"].empty:
+            st.plotly_chart(
+                px.bar(
+                    data["standard_formula_modules"],
+                    x="module",
+                    y="scr",
+                    title="SCR Composition",
+                ),
+                width="stretch",
+            )
 
-    st.markdown("### Simplified Standard Formula SCR")
-    st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
+    with tabs[1]:
+        st.markdown("### One-Year Loss Distribution")
+        if data["one_year_simulations"].empty:
+            render_empty_state("No one-year loss simulations are available.")
+        else:
+            st.plotly_chart(
+                px.histogram(
+                    data["one_year_simulations"],
+                    x="one_year_loss",
+                    nbins=50,
+                    title="One-Year Own Funds Loss",
+                ),
+                width="stretch",
+            )
+        with st.expander("Economic capital summary", expanded=True):
+            st.dataframe(data["capital_summary"], hide_index=True, width="stretch")
 
-    st.markdown("### Non-Life Premium And Reserve Risk By LoB")
-    st.dataframe(data["standard_formula_by_lob"], hide_index=True, width="stretch")
+    with tabs[2]:
+        st.markdown("### Simplified Standard Formula SCR")
+        st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
+        with st.expander("Non-Life Premium And Reserve Risk By LoB", expanded=True):
+            st.dataframe(data["standard_formula_by_lob"], hide_index=True, width="stretch")
 
-    st.markdown("### MCR")
-    st.dataframe(data["mcr"], hide_index=True, width="stretch")
+    with tabs[3]:
+        st.markdown("### Stress Tests")
+        if data["stress_summaries"].empty:
+            render_empty_state("No stress summaries are available.")
+        else:
+            st.plotly_chart(
+                px.bar(data["stress_summaries"], x="stress", y="loss", title="Stress Test Losses"),
+                width="stretch",
+            )
+            st.dataframe(data["stress_summaries"], hide_index=True, width="stretch")
+        with st.expander("Market stress module detail"):
+            st.dataframe(data["market_stresses"], hide_index=True, width="stretch")
 
-    st.markdown("### Stress Summaries")
-    st.dataframe(data["stress_summaries"], hide_index=True, width="stretch")
+    with tabs[4]:
+        st.markdown("### Simulation Output")
+        if data["one_year_simulations"].empty:
+            render_empty_state("No one-year simulation output is available.")
+        else:
+            st.dataframe(data["one_year_simulations"].head(250), hide_index=True, width="stretch")
+
+    with tabs[5]:
+        st.markdown("### Audit")
+        with st.expander("Capital contributions", expanded=True):
+            st.dataframe(contributions, hide_index=True, width="stretch")
+        with st.expander("MCR"):
+            st.dataframe(data["mcr"], hide_index=True, width="stretch")
+        with st.expander("Own funds"):
+            st.dataframe(data["own_funds"], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":

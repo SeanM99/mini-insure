@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import plotly.express as px
 import streamlit as st
 
 from app.components import (
@@ -83,58 +84,93 @@ def render_balance_sheet() -> None:
         st.stop()
     balance = data["balance_sheet"].iloc[0].to_dict()
 
-    metric_cols = st.columns(6)
-    metric_cols[0].metric("Assets", format_eur_m(balance["assets"]))
-    metric_cols[1].metric("Liabilities", format_eur_m(balance["liabilities"]))
-    metric_cols[2].metric("Technical provisions", format_eur_m(balance["technical_provisions"]))
-    metric_cols[3].metric("Own funds", format_eur_m(balance["own_funds"]))
-    metric_cols[4].metric("SCR", format_eur_m(balance["scr"]))
-    metric_cols[5].metric("MCR", format_eur_m(balance["mcr"]))
-
-    ratio_cols = st.columns(3)
-    ratio_cols[0].metric("Eligible own funds", format_eur_m(balance["eligible_own_funds"]))
-    ratio_cols[1].metric("Solvency ratio", format_pct(balance["solvency_ratio"]))
-    ratio_cols[2].metric("MCR ratio", format_pct(balance["mcr_ratio"]))
-
-    render_status_badge(
-        "Balance sheet reconciliation",
-        str(balance["reconciliation_status"]),
-        detail="Assets equal liabilities plus own funds within tolerance.",
+    balance_columns = [
+        "assets",
+        "liabilities",
+        "technical_provisions",
+        "other_liabilities",
+        "own_funds",
+        "eligible_own_funds",
+        "scr",
+        "mcr",
+        "solvency_ratio",
+        "mcr_ratio",
+        "reconciliation_difference",
+        "reconciliation_status",
+    ]
+    own_funds_bridge = pd.DataFrame(
+        [
+            {"line": "Assets", "amount": balance["assets"]},
+            {"line": "Liabilities", "amount": -balance["liabilities"]},
+            {"line": "Own funds", "amount": balance["own_funds"]},
+        ]
     )
 
-    st.markdown("### Balance Sheet")
-    st.dataframe(
-        data["balance_sheet"][
-            [
-                "assets",
-                "liabilities",
-                "technical_provisions",
-                "other_liabilities",
-                "own_funds",
-                "eligible_own_funds",
-                "scr",
-                "mcr",
-                "solvency_ratio",
-                "mcr_ratio",
-                "reconciliation_difference",
-                "reconciliation_status",
-            ]
-        ],
-        hide_index=True,
-        width="stretch",
-    )
+    tabs = st.tabs(["Overview", "Balance Sheet", "Own Funds", "Capital Requirements", "Audit"])
+    with tabs[0]:
+        metric_cols = st.columns(6)
+        metric_cols[0].metric("Assets", format_eur_m(balance["assets"]))
+        metric_cols[1].metric("Liabilities", format_eur_m(balance["liabilities"]))
+        metric_cols[2].metric("Technical provisions", format_eur_m(balance["technical_provisions"]))
+        metric_cols[3].metric("Own funds", format_eur_m(balance["own_funds"]))
+        metric_cols[4].metric("SCR", format_eur_m(balance["scr"]))
+        metric_cols[5].metric("MCR", format_eur_m(balance["mcr"]))
 
-    st.markdown("### Own Funds")
-    if data["own_funds_tiers"].empty:
-        render_empty_state("No own funds tier rows are available.")
-    else:
-        st.dataframe(data["own_funds_tiers"], hide_index=True, width="stretch")
+        ratio_cols = st.columns(3)
+        ratio_cols[0].metric("Eligible own funds", format_eur_m(balance["eligible_own_funds"]))
+        ratio_cols[1].metric("Solvency ratio", format_pct(balance["solvency_ratio"]))
+        ratio_cols[2].metric("MCR ratio", format_pct(balance["mcr_ratio"]))
 
-    st.markdown("### Capital Requirements")
-    if data["standard_formula_modules"].empty:
-        render_empty_state("No capital requirement rows are available.")
-    else:
-        st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
+        render_status_badge(
+            "Balance sheet reconciliation",
+            str(balance["reconciliation_status"]),
+            detail="Assets equal liabilities plus own funds within tolerance.",
+        )
+        chart_cols = st.columns(2)
+        with chart_cols[0]:
+            st.plotly_chart(
+                px.bar(own_funds_bridge, x="line", y="amount", title="Own Funds Bridge"),
+                width="stretch",
+            )
+        with chart_cols[1]:
+            if data["standard_formula_modules"].empty:
+                render_empty_state("No SCR composition rows are available.")
+            else:
+                st.plotly_chart(
+                    px.bar(
+                        data["standard_formula_modules"],
+                        x="module",
+                        y="scr",
+                        title="SCR Composition",
+                    ),
+                    width="stretch",
+                )
+
+    with tabs[1]:
+        st.markdown("### Balance Sheet")
+        st.dataframe(
+            data["balance_sheet"][balance_columns],
+            hide_index=True,
+            width="stretch",
+        )
+
+    with tabs[2]:
+        st.markdown("### Own Funds")
+        if data["own_funds_tiers"].empty:
+            render_empty_state("No own funds tier rows are available.")
+        else:
+            st.dataframe(data["own_funds_tiers"], hide_index=True, width="stretch")
+
+    with tabs[3]:
+        st.markdown("### Capital Requirements")
+        if data["standard_formula_modules"].empty:
+            render_empty_state("No capital requirement rows are available.")
+        else:
+            st.dataframe(data["standard_formula_modules"], hide_index=True, width="stretch")
+
+    with tabs[4]:
+        st.markdown("### Audit")
+        st.dataframe(data["balance_sheet"][balance_columns], hide_index=True, width="stretch")
 
 
 if __name__ == "__main__":
