@@ -1,0 +1,19 @@
+{
+  "status": "pass",
+  "export_blocked": false,
+  "error_count": 0,
+  "warning_count": 0,
+  "record_counts": {
+    "asset_portfolio": 4,
+    "case_reserves": 6,
+    "catastrophe_events": 2,
+    "claims": 6,
+    "economic_scenarios": 3,
+    "observed_valuation_snapshot": 1,
+    "payments": 12,
+    "policies": 10,
+    "reinsurance_recoveries": 2,
+    "synthetic_truth": 6
+  },
+  "messages": []
+}

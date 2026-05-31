@@ -1,0 +1,2 @@
+snapshot_id,valuation_date,policy_count,claim_count,paid_to_date,case_reserve_total,ultimate_claim_total,assumption_hash
+SNAP2026Q4,2026-12-31,10,6,5750.00,5300.00,13900.00,fixture-assumption-hash

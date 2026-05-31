@@ -1,0 +1,50 @@
+legal_entity:
+  name: MiniInsure Europe NL Synthetic N.V.
+  registration_id: SYN-NL-MOTOR-0001
+  lei: 549300MINIINSURENL00
+  country: Netherlands
+supervisor: Synthetic supervisor placeholder
+jurisdiction: NL
+reporting_framework: Educational Solvency II-style foundation
+business_type: Non-life insurance
+product: Motor insurance
+reporting_currency: EUR
+valuation_date: "2026-12-31"
+projection_period:
+  start_year: 2027
+  end_year: 2031
+historical_accident_years:
+  - 2021
+  - 2022
+  - 2023
+  - 2024
+  - 2025
+  - 2026
+primary_reporting_quarter: 2026 Q4
+master_seed: 20261231
+selectable_portfolio_modes:
+  - small
+  - medium
+  - full
+portfolio_mode: medium
+policy_counts_by_year:
+  2024: 18000
+  2025: 21000
+  2026: 24000
+market_cycle_factors:
+  claims_frequency_cycle: 1.0
+  claims_inflation_cycle: 1.0
+  premium_rate_cycle: 1.0
+display_conventions:
+  date_format: "%Y-%m-%d"
+  decimal_places: 2
+  percent_decimal_places: 1
+  currency_symbol: EUR
+export_conventions:
+  file_prefix: miniinsure_europe_nl
+  include_scenario_metadata: true
+  qrt_outputs_are_mock_only: true
+validation_tolerances:
+  monetary_abs: 0.01
+  ratio_abs: 0.000001
+real_xbrl_disabled: true

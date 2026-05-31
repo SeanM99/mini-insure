@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "miniinsure-europe-nl"
+version = "0.1.0"
+description = "Educational Solvency II-style actuarial platform for a synthetic Netherlands-based motor insurer."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "streamlit",
+    "pandas",
+    "numpy",
+    "scipy",
+    "pydantic>=2",
+    "PyYAML",
+    "pyarrow",
+    "SQLAlchemy",
+    "plotly",
+    "pytest",
+    "openpyxl",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

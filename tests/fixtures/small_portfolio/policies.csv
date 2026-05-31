@@ -1,0 +1,11 @@
+policy_id,inception_date,expiry_date,accident_year,product,portfolio_mode,written_premium,earned_premium,exposure,sum_insured
+P0001,2026-01-01,2026-12-31,2026,Motor Liability,small,600.00,600.00,1.00,25000
+P0002,2026-01-01,2026-12-31,2026,Motor Liability,small,720.00,720.00,1.00,30000
+P0003,2026-01-01,2026-12-31,2026,Motor Liability,small,480.00,480.00,1.00,20000
+P0004,2026-01-01,2026-12-31,2026,Motor Liability,small,900.00,900.00,1.00,45000
+P0005,2026-01-01,2026-12-31,2026,Motor Liability,small,650.00,650.00,1.00,28000
+P0006,2026-01-01,2026-12-31,2026,Motor Liability,small,700.00,700.00,1.00,32000
+P0007,2026-04-01,2026-12-31,2026,Motor Liability,small,680.00,510.00,0.75,26000
+P0008,2026-01-01,2026-12-31,2026,Motor Liability,small,820.00,820.00,1.00,34000
+P0009,2026-01-01,2026-12-31,2026,Motor Liability,small,760.00,760.00,1.00,31000
+P0010,2026-07-01,2026-12-31,2026,Motor Liability,small,1120.00,560.00,0.50,50000

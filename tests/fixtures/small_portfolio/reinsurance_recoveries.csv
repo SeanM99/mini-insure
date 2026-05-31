@@ -1,0 +1,3 @@
+recovery_id,event_id,treaty_id,insured_loss,treaty_retention,treaty_limit,recovery_amount
+REC0001,EV0001,QS2026,300000.00,50000.00,200000.00,120000.00
+REC0002,EV0002,QS2026,100000.00,25000.00,50000.00,30000.00

@@ -1,0 +1,4 @@
+scenario_id,scenario_name,valuation_date,risk_free_rate,inflation_rate,equity_return
+ES0001,base,2026-12-31,0.0250,0.0200,0.0400
+ES0002,low_rates,2026-12-31,0.0100,0.0150,0.0200
+ES0003,inflation_stress,2026-12-31,0.0300,0.0450,-0.0500

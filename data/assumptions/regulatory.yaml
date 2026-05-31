@@ -1,0 +1,9 @@
+supervisor: De Nederlandsche Bank
+jurisdiction: Netherlands
+reporting_framework: Educational Solvency II-style mock framework
+export_conventions:
+  qrt_outputs_are_mock_only: true
+validation_tolerances:
+  monetary_abs: 0.005
+  ratio_abs: 0.0000005
+real_xbrl_disabled: true

@@ -1,0 +1,5 @@
+asset_id,asset_class,market_value,portfolio_weight,currency
+A0001,government_bonds,3500000.00,0.35,EUR
+A0002,corporate_bonds,2500000.00,0.25,EUR
+A0003,equities,3000000.00,0.30,EUR
+A0004,cash,1000000.00,0.10,EUR

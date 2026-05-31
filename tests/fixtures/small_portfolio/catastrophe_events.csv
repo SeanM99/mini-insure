@@ -1,0 +1,3 @@
+event_id,event_date,event_type,gross_loss,insured_loss
+EV0001,2026-02-18,winter_storm,350000.00,300000.00
+EV0002,2026-07-12,hail,120000.00,100000.00

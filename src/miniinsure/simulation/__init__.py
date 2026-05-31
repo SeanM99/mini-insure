@@ -1,0 +1,2 @@
+"""Synthetic simulation validation package."""
+
